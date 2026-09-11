@@ -1,0 +1,431 @@
+/**
+ * Made N More — Inventory Page
+ * Filament inventory manager with grid/table views, CRUD, filters, search, inline edit
+ */
+
+import { getAll, create, update, remove, duplicate } from '../data/store.js';
+import { MATERIAL_TYPES, MATERIAL_BADGES, getSwatchClass } from '../data/seed.js';
+import { escapeHtml, debounce } from '../utils/helpers.js';
+import { ICONS } from '../utils/icons.js';
+import { showModal, closeModal } from '../components/modal.js';
+import { showToast } from '../components/toast.js';
+
+let _view = 'grid'; // grid | table
+let _filterMaterial = '';
+let _filterUsable = '';
+let _searchQuery = '';
+let _sortField = 'name';
+let _sortDir = 'asc';
+
+export function renderInventory(container) {
+  render(container);
+}
+
+function getFiltered() {
+  let items = getAll('filaments');
+
+  if (_searchQuery) {
+    const q = _searchQuery.toLowerCase();
+    items = items.filter(f =>
+      f.name?.toLowerCase().includes(q) ||
+      f.material?.toLowerCase().includes(q) ||
+      f.brand?.toLowerCase().includes(q)
+    );
+  }
+  if (_filterMaterial) {
+    items = items.filter(f => f.material === _filterMaterial);
+  }
+  if (_filterUsable === 'yes') {
+    items = items.filter(f => f.usable === true);
+  } else if (_filterUsable === 'no') {
+    items = items.filter(f => f.usable === false);
+  }
+
+  // Sort
+  items.sort((a, b) => {
+    let valA = a[_sortField] ?? '';
+    let valB = b[_sortField] ?? '';
+    if (typeof valA === 'string') valA = valA.toLowerCase();
+    if (typeof valB === 'string') valB = valB.toLowerCase();
+    if (valA < valB) return _sortDir === 'asc' ? -1 : 1;
+    if (valA > valB) return _sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  return items;
+}
+
+function render(container) {
+  const items = getFiltered();
+  const totalSpools = items.reduce((s, f) => s + (f.spools || 0), 0);
+
+  container.innerHTML = `
+    <div class="page-header animate-in">
+      <div class="page-header-left">
+        <h1>Filament Inventory</h1>
+        <p class="text-secondary">${items.length} filaments • ${totalSpools} spools in stock</p>
+      </div>
+      <div class="page-header-actions">
+        <button class="btn btn-primary" id="btn-add-filament">
+          <span class="nav-icon">${ICONS.plus}</span>
+          Add Filament
+        </button>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar animate-in animate-delay-1">
+      <div class="toolbar-left">
+        <div class="search-bar">
+          <span class="search-icon">${ICONS.search}</span>
+          <input type="text" id="inv-search" placeholder="Search filaments..." value="${escapeHtml(_searchQuery)}"/>
+        </div>
+        <select class="filter-select" id="inv-filter-material">
+          <option value="">All Materials</option>
+          ${MATERIAL_TYPES.map(m => `<option value="${m}" ${_filterMaterial === m ? 'selected' : ''}>${m}</option>`).join('')}
+        </select>
+        <select class="filter-select" id="inv-filter-usable">
+          <option value="" ${_filterUsable === '' ? 'selected' : ''}>All Status</option>
+          <option value="yes" ${_filterUsable === 'yes' ? 'selected' : ''}>Usable</option>
+          <option value="no" ${_filterUsable === 'no' ? 'selected' : ''}>Not Usable</option>
+        </select>
+      </div>
+      <div class="toolbar-right">
+        <div class="view-toggle">
+          <button class="${_view === 'grid' ? 'active' : ''}" data-view="grid" title="Grid view">
+            <span style="width:16px;height:16px;">${ICONS.grid}</span>
+          </button>
+          <button class="${_view === 'table' ? 'active' : ''}" data-view="table" title="Table view">
+            <span style="width:16px;height:16px;">${ICONS.list}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div id="inv-content" class="animate-in animate-delay-2">
+      ${_view === 'grid' ? renderGrid(items) : renderTable(items)}
+    </div>
+  `;
+
+  bindEvents(container);
+}
+
+function getMaterialBadge(material) {
+  const cls = MATERIAL_BADGES[material] || 'badge-pla';
+  return `<span class="badge ${cls}">${escapeHtml(material)}</span>`;
+}
+
+function renderGrid(items) {
+  if (items.length === 0) {
+    return `<div class="empty-state"><div class="empty-state-icon">${ICONS.spool}</div><p>No filaments found. Try adjusting your filters or add a new filament.</p></div>`;
+  }
+  return `
+    <div class="filament-grid">
+      ${items.map(f => {
+        const swatchClass = getSwatchClass(f.name, f.material);
+        return `
+        <div class="card card-lift filament-card" data-id="${f.id}">
+          <div class="filament-card-actions">
+            <button class="btn-icon" data-action="edit" data-id="${f.id}" title="Edit">
+              <span style="width:16px;height:16px;">${ICONS.edit}</span>
+            </button>
+            <button class="btn-icon" data-action="duplicate" data-id="${f.id}" title="Duplicate">
+              <span style="width:16px;height:16px;">${ICONS.copy}</span>
+            </button>
+            <button class="btn-icon" data-action="delete" data-id="${f.id}" title="Delete" style="color:var(--danger);">
+              <span style="width:16px;height:16px;">${ICONS.trash}</span>
+            </button>
+          </div>
+          <div class="filament-card-top">
+            <div class="color-swatch color-swatch-lg ${swatchClass}" style="background-color: ${f.hex || '#888'};"></div>
+            <div class="filament-card-info">
+              <div class="filament-card-name">${escapeHtml(f.name)}</div>
+              <div class="filament-card-meta">
+                ${getMaterialBadge(f.material)}
+                <span class="badge ${f.usable !== false ? 'badge-yes' : 'badge-no'}">${f.usable !== false ? 'Usable' : 'Not Usable'}</span>
+              </div>
+            </div>
+          </div>
+          <div class="filament-card-bottom">
+            <span class="filament-card-brand">${escapeHtml(f.brand || '—')}</span>
+            <div class="filament-card-spools">
+              <span class="spool-icon">${ICONS.spool}</span>
+              <strong>${f.spools || 0}</strong> spool${(f.spools || 0) !== 1 ? 's' : ''}
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderTable(items) {
+  if (items.length === 0) {
+    return `<div class="empty-state"><div class="empty-state-icon">${ICONS.spool}</div><p>No filaments found.</p></div>`;
+  }
+  return `
+    <div class="table-container">
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width:40px">#</th>
+            <th>Color</th>
+            <th data-sort="material" class="${_sortField === 'material' ? 'sorted' : ''}">Material <span class="sort-icon">↕</span></th>
+            <th data-sort="spools" class="${_sortField === 'spools' ? 'sorted' : ''}">Spools <span class="sort-icon">↕</span></th>
+            <th>Status</th>
+            <th>Brand</th>
+            <th style="width:100px">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map((f, i) => {
+            const swatchClass = getSwatchClass(f.name, f.material);
+            return `
+            <tr data-id="${f.id}">
+              <td style="color:var(--text-muted)">${i + 1}</td>
+              <td>
+                <div class="flex items-center gap-md">
+                  <div class="color-swatch ${swatchClass}" style="background-color: ${f.hex || '#888'};"></div>
+                  <span class="inline-editable" data-field="name" data-id="${f.id}">${escapeHtml(f.name)}</span>
+                </div>
+              </td>
+              <td>${getMaterialBadge(f.material)}</td>
+              <td>
+                <span class="inline-editable" data-field="spools" data-id="${f.id}">${f.spools || 0}</span>
+              </td>
+              <td><span class="badge ${f.usable !== false ? 'badge-yes' : 'badge-no'}">${f.usable !== false ? 'Usable' : 'Not Usable'}</span></td>
+              <td style="color:var(--text-secondary)">${escapeHtml(f.brand || '—')}</td>
+              <td>
+                <div class="row-actions">
+                  <button class="btn-icon" data-action="edit" data-id="${f.id}" title="Edit">${ICONS.edit}</button>
+                  <button class="btn-icon" data-action="duplicate" data-id="${f.id}" title="Duplicate">${ICONS.copy}</button>
+                  <button class="btn-icon" data-action="delete" data-id="${f.id}" title="Delete" style="color:var(--danger)">${ICONS.trash}</button>
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function bindEvents(container) {
+  // Add filament
+  container.querySelector('#btn-add-filament')?.addEventListener('click', () => openFilamentModal());
+
+  // Search
+  container.querySelector('#inv-search')?.addEventListener('input', debounce((e) => {
+    _searchQuery = e.target.value;
+    render(container);
+  }, 250));
+
+  // Filters
+  container.querySelector('#inv-filter-material')?.addEventListener('change', (e) => {
+    _filterMaterial = e.target.value;
+    render(container);
+  });
+
+  container.querySelector('#inv-filter-usable')?.addEventListener('change', (e) => {
+    _filterUsable = e.target.value;
+    render(container);
+  });
+
+  // View toggle
+  container.querySelectorAll('.view-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _view = btn.dataset.view;
+      render(container);
+    });
+  });
+
+  // Table sort
+  container.querySelectorAll('th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const field = th.dataset.sort;
+      if (_sortField === field) {
+        _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        _sortField = field;
+        _sortDir = 'asc';
+      }
+      render(container);
+    });
+  });
+
+  // Card/Row actions (edit, delete, duplicate)
+  container.querySelectorAll('[data-action]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const action = btn.dataset.action;
+      const id = btn.dataset.id;
+      if (action === 'edit') openFilamentModal(id);
+      else if (action === 'delete') confirmDelete(id, container);
+      else if (action === 'duplicate') {
+        duplicate('filaments', id);
+        showToast('Filament duplicated!', 'success');
+        render(container);
+      }
+    });
+  });
+
+  // Inline editing (table view)
+  container.querySelectorAll('.inline-editable').forEach(el => {
+    el.addEventListener('dblclick', () => startInlineEdit(el, container));
+  });
+}
+
+function startInlineEdit(el, container) {
+  const field = el.dataset.field;
+  const id = el.dataset.id;
+  const currentValue = el.textContent.trim();
+
+  const input = document.createElement('input');
+  input.className = 'inline-edit-input';
+  input.value = currentValue;
+  input.type = field === 'spools' ? 'number' : 'text';
+  if (field === 'spools') { input.min = 0; input.step = 1; }
+
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const finish = () => {
+    const newValue = field === 'spools' ? parseInt(input.value) || 0 : input.value.trim();
+    if (newValue !== currentValue && newValue !== '') {
+      update('filaments', id, { [field]: newValue });
+      showToast('Updated!', 'success');
+    }
+    render(container);
+  };
+
+  input.addEventListener('blur', finish);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') finish();
+    if (e.key === 'Escape') render(container);
+  });
+}
+
+function confirmDelete(id, container) {
+  const filament = getAll('filaments').find(f => f.id === id);
+  if (!filament) return;
+
+  showModal({
+    title: 'Delete Filament',
+    body: `<p>Are you sure you want to delete <strong>${escapeHtml(filament.name)}</strong>?</p><p class="text-secondary" style="margin-top:8px;font-size:0.85rem;">This action can be undone.</p>`,
+    confirmText: 'Delete',
+    confirmClass: 'btn-danger',
+    onConfirm: () => {
+      remove('filaments', id);
+      showToast(`Deleted "${filament.name}"`, 'warning');
+      closeModal();
+      render(container);
+    },
+  });
+}
+
+function openFilamentModal(editId = null) {
+  const existing = editId ? getAll('filaments').find(f => f.id === editId) : null;
+  const isEdit = !!existing;
+
+  const body = `
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Color Name *</label>
+        <input class="form-input" id="fil-name" value="${escapeHtml(existing?.name || '')}" placeholder="e.g. Pitch Black" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Material *</label>
+        <select class="form-select" id="fil-material">
+          ${MATERIAL_TYPES.map(m => `<option value="${m}" ${existing?.material === m ? 'selected' : ''}>${m}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Color</label>
+        <div class="form-color-wrapper">
+          <div class="form-color-preview" id="fil-color-preview" style="background-color: ${existing?.hex || '#888888'}"></div>
+          <input type="color" id="fil-hex" value="${existing?.hex || '#888888'}" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Spools in Stock</label>
+        <input class="form-input" type="number" id="fil-spools" min="0" value="${existing?.spools ?? 1}" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Brand</label>
+        <input class="form-input" id="fil-brand" value="${escapeHtml(existing?.brand || 'Numakers')}" placeholder="e.g. Numakers" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Usable</label>
+        <div class="toggle-wrapper" id="fil-usable-toggle" style="margin-top:8px;">
+          <div class="toggle ${existing?.usable !== false ? 'active' : ''}" id="fil-usable-switch"></div>
+          <span id="fil-usable-label">${existing?.usable !== false ? 'Yes' : 'No'}</span>
+        </div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <textarea class="form-textarea form-input" id="fil-notes" placeholder="Optional notes...">${escapeHtml(existing?.notes || '')}</textarea>
+    </div>
+  `;
+
+  showModal({
+    title: isEdit ? 'Edit Filament' : 'Add New Filament',
+    body,
+    confirmText: isEdit ? 'Save Changes' : 'Add Filament',
+    onConfirm: () => {
+      const name = document.getElementById('fil-name').value.trim();
+      if (!name) {
+        showToast('Name is required', 'error');
+        return;
+      }
+
+      const data = {
+        name,
+        material: document.getElementById('fil-material').value,
+        hex: document.getElementById('fil-hex').value,
+        spools: parseInt(document.getElementById('fil-spools').value) || 0,
+        brand: document.getElementById('fil-brand').value.trim(),
+        usable: document.getElementById('fil-usable-switch').classList.contains('active'),
+        notes: document.getElementById('fil-notes').value.trim(),
+      };
+
+      if (isEdit) {
+        update('filaments', editId, data);
+        showToast('Filament updated!', 'success');
+      } else {
+        create('filaments', data);
+        showToast('Filament added!', 'success');
+      }
+
+      closeModal();
+      const contentEl = document.getElementById('content');
+      if (contentEl) render(contentEl);
+    },
+    onReady: () => {
+      // Color picker sync
+      const colorInput = document.getElementById('fil-hex');
+      const colorPreview = document.getElementById('fil-color-preview');
+      if (colorInput && colorPreview) {
+        colorInput.addEventListener('input', () => {
+          colorPreview.style.backgroundColor = colorInput.value;
+        });
+      }
+
+      // Toggle switch
+      const toggle = document.getElementById('fil-usable-switch');
+      const label = document.getElementById('fil-usable-label');
+      if (toggle) {
+        toggle.parentElement.addEventListener('click', () => {
+          toggle.classList.toggle('active');
+          label.textContent = toggle.classList.contains('active') ? 'Yes' : 'No';
+        });
+      }
+    },
+  });
+}
