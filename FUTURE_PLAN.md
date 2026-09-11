@@ -66,29 +66,33 @@ graph TB
                                     │
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 2 (Delivered & Expanding): Multiple 3D Printer Farm & Fleet Telemetry           │
+│ PHASE 2 (Delivered): Multiple 3D Printer Farm, LAN Fleet Hub & Timelapse Archiver     │
+│ • Snapmaker U1 Direct LAN Moonraker Bridge (live nozzle/bed telemetry, port 80)        │
+│ • Auto-Subnet Scanner (auto-detects DHCP IP shifts across 192.168.0.100-200)           │
 │ • Real-time status cards (Snapmaker U1, Voron CoreXY, Bambu Lab P1S, Ender Plus)       │
-│ • Extruder & bed thermal telemetry (Actual vs Target temperatures)                     │
-│ • 1-Click job dispatching from active orders queue                                     │
+│ • Live Chamber/Bed/Nozzle thermal telemetry with target vs actual gauges               │
+│ • Timelapse Video Streamer & Bulk Downloader: 1-Click sequential download of all .mp4s │
+│ • Fleet status filter pills (All Machines, 🟢 Printing, 🟡 Idle/Ready, 🔴 Maintenance) │
 │ • Operating hours odometer & preventative maintenance alerts (nozzles, rails, belts)   │
 └────────────────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 3 (Current Build): Owner Support Tools & Slicer File Ingestion                  │
+│ PHASE 3 (Delivered): Owner Support Tools, Slicer Ingestion & QC Job Travelers          │
 │ • In-Browser G-Code & 3MF parser: Drag & drop sliced files to auto-read grams & hours  │
-│ • 1-Click WhatsApp Quote Generator: Pre-formatted WhatsApp messages for clients       │
-│ • Quick Stock Adjustment steppers on Numakers spools                                   │
-│ • Scrap Loss & Failed Print Logger: Log spaghetti/failures and reclaim costs           │
+│ • 1-Click WhatsApp Milestone Quote Generator with deposit & QC dispatch terms          │
+│ • Printable Workshop Job Traveler Card (📋): A4 QC checklist & router for shop floor   │
+│ • Zero-Touch Spool Deduction: Auto-decrements grams on print complete                  │
+│ • Scrap Loss & Failed Print Logger: Deducts wasted filament and logs ledger loss       │
+│ • Digital Scale Tare Tool: Exact usable filament calculation subtracting spool spool tare│
 └────────────────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 4: Deep Material Accounting & Digital Scale Sync                                │
-│ • Tare weight database (Numakers 210g, eSun 230g, Bambu 250g)                          │
-│ • Digital scale tare subtraction (Gross input -> Net usable filament calculation)      │
+│ PHASE 4 (Next Priority): Deep Material Accounting & Physical Barcode/QR Rack Sync      │
 │ • Physical thermal QR label printing (50x30mm) for spool racks                         │
-│ • Workshop consumables: Resins (ml), nozzles, IPA, and heat-set brass threaded inserts │
+│ • Workshop consumables tracking: Resins (ml), nozzles, IPA, and heat-set brass inserts │
+│ • Automated low-spool threshold replenishment notifications                            │
 └────────────────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼

@@ -11,10 +11,11 @@ import { showToast } from '../components/toast.js';
 import { PRINTER_SEED } from '../data/seed.js';
 import { openTareCalculatorModal } from '../utils/tareCalculator.js';
 import { readSlicerFile } from '../utils/slicerParser.js';
-import { fetchPrinterTelemetry, fetchLatestSnapshot, scanLocalSubnet } from '../services/moonrakerService.js';
+import { fetchPrinterTelemetry, fetchLatestSnapshot, scanLocalSubnet, fetchAllCameraMedia } from '../services/moonrakerService.js';
 
 let _telemetryActive = false;
 let _telemetryTimer = null;
+let _fleetFilter = 'all'; // all | printing | idle | maintenance
 
 export function renderPrinters(container) {
   // Auto-seed sample printers if fleet is empty
@@ -103,9 +104,17 @@ function render(container) {
       </div>
     </div>
 
+    <!-- Fleet Status Filter Pills -->
+    <div class="fleet-filter-bar animate-in animate-delay-2">
+      <button class="fleet-filter-pill ${_fleetFilter === 'all' ? 'active' : ''}" data-filter="all">All Machines (${printers.length})</button>
+      <button class="fleet-filter-pill ${_fleetFilter === 'printing' ? 'active' : ''}" data-filter="printing">🟢 Printing (${activePrinting.length})</button>
+      <button class="fleet-filter-pill ${_fleetFilter === 'idle' ? 'active' : ''}" data-filter="idle">🟡 Ready / Idle (${idlePrinters.length})</button>
+      <button class="fleet-filter-pill ${_fleetFilter === 'maintenance' ? 'active' : ''}" data-filter="maintenance">🔴 Maintenance (${maintenancePrinters.length})</button>
+    </div>
+
     <!-- Printers Cards Grid -->
     <div class="printer-grid animate-in animate-delay-2">
-      ${printers.map(p => renderPrinterCard(p)).join('')}
+      ${(_fleetFilter === 'all' ? printers : printers.filter(p => p.status === _fleetFilter)).map(p => renderPrinterCard(p)).join('')}
     </div>
   `;
 
@@ -296,8 +305,12 @@ function renderPrinterCard(printer) {
           </button>
         `}
 
+        <button class="btn-icon btn-sm" data-action="print-traveler" data-id="${printer.id}" title="Print Workshop Job Traveler Card">
+          📋
+        </button>
+
         ${hasLan ? `
-          <button class="btn-icon btn-sm" data-action="fetch-camera" data-id="${printer.id}" title="Camera Snapshot">
+          <button class="btn-icon btn-sm" data-action="fetch-camera" data-id="${printer.id}" title="Timelapse Gallery & Camera">
             📷
           </button>
         ` : ''}
@@ -319,6 +332,14 @@ function renderPrinterCard(printer) {
 function bindEvents(container) {
   // Add Machine
   container.querySelector('#btn-add-printer')?.addEventListener('click', () => openPrinterModal(container));
+
+  // Fleet Filter Pills
+  container.querySelectorAll('.fleet-filter-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _fleetFilter = btn.dataset.filter;
+      render(container);
+    });
+  });
 
   // Sync Physical Farm
   container.querySelector('#btn-sync-physical')?.addEventListener('click', () => {
@@ -381,6 +402,7 @@ function bindEvents(container) {
       else if (action === 'iot-config') openIoTConfigModal(id, container);
       else if (action === 'quick-tare-printer') quickTarePrinterSpool(id, container);
       else if (action === 'fetch-camera') openCameraSnapshotModal(id, container);
+      else if (action === 'print-traveler') openJobTravelerModal(id, container);
       else if (action === 'poll-physical') pollSinglePhysicalPrinter(id, container);
       else if (action === 'edit-printer') openPrinterModal(container, id);
       else if (action === 'delete-printer') confirmDeletePrinter(id, container);
@@ -450,7 +472,7 @@ async function pollSinglePhysicalPrinter(printerId, container) {
   }
 }
 
-// ─── Camera Snapshot & Stream Modal ────────────────────────────
+// ─── Timelapse Video Gallery & Bulk Downloader ────────────────
 async function openCameraSnapshotModal(printerId, container) {
   const printer = getById('printers', printerId);
   if (!printer || !printer.iotHost) {
@@ -458,70 +480,366 @@ async function openCameraSnapshotModal(printerId, container) {
     return;
   }
 
-  showToast('Fetching latest camera snapshot from printer...', 'info');
-  const snapshot = await fetchLatestSnapshot(printer.iotHost, printer.iotPort || 80);
-
-  const streamUrl = `http://${printer.iotHost}/webcam/?action=stream`;
+  showToast('Connecting to Moonraker camera media repository...', 'info');
+  const media = await fetchAllCameraMedia(printer.iotHost, printer.iotPort || 80);
+  const initialSnapshot = media.snapshots.length > 0 ? media.snapshots[0] : null;
 
   const body = `
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
       <div>
-        <strong>${escapeHtml(printer.name)} Camera System</strong>
+        <div style="font-weight:700;font-size:1rem;color:var(--text-primary);">${escapeHtml(printer.name)} Timelapse & Media Hub</div>
         <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:2px;">
-          IP: <strong>${escapeHtml(printer.iotHost)}</strong> • Moonraker Timelapse & Snapshots
+          ${media.totalVideoCount} Video Recordings (${media.totalVideoSizeFormatted}) • ${media.totalSnapshotCount} Layer Photos
         </div>
       </div>
-      <a href="http://${escapeHtml(printer.iotHost)}/" target="_blank" class="btn btn-ghost btn-sm" style="font-size:0.75rem;">
-        🌐 Open Fluidd
-      </a>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-primary btn-sm" id="btn-download-all-videos" ${media.totalVideoCount === 0 ? 'disabled' : ''}>
+          ⬇️ Download All Timelapses (${media.totalVideoCount})
+        </button>
+        <a href="http://${escapeHtml(printer.iotHost)}/" target="_blank" class="btn btn-ghost btn-sm" style="font-size:0.75rem;">
+          🌐 Fluidd
+        </a>
+      </div>
     </div>
 
-    <!-- Snapshot Viewer Box -->
-    <div style="text-align:center;background:#000;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;margin-bottom:14px;min-height:240px;display:flex;align-items:center;justify-content:center;position:relative;">
-      ${snapshot ? `
-        <img src="${snapshot.url}" alt="Snapmaker Bed Snapshot" style="max-width:100%;max-height:380px;object-fit:contain;display:block;" id="camera-snapshot-img" />
-        <div style="position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,0.7);padding:4px 8px;border-radius:4px;font-size:0.72rem;color:#fff;">
-          Latest Photo: ${snapshot.filename} (${snapshot.modified})
+    <!-- Active Media Player Box (Video or Photo) -->
+    <div id="active-media-box" style="background:#0a0a0a;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;margin-bottom:14px;min-height:240px;display:flex;align-items:center;justify-content:center;position:relative;">
+      <video id="active-preview-video" controls style="display:none;max-width:100%;max-height:360px;object-fit:contain;width:100%;"></video>
+      <img id="active-preview-img" src="${initialSnapshot ? initialSnapshot.url : ''}" alt="Snapshot" style="${initialSnapshot ? 'display:block;' : 'display:none;'}max-width:100%;max-height:360px;object-fit:contain;" />
+      
+      <div id="active-preview-caption" style="position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,0.75);padding:4px 10px;border-radius:4px;font-size:0.72rem;color:#fff;${!initialSnapshot ? 'display:none;' : ''}">
+        ${initialSnapshot ? `Latest Snapshot: ${escapeHtml(initialSnapshot.filename)} (${initialSnapshot.dateFormatted})` : ''}
+      </div>
+
+      ${!initialSnapshot && media.totalVideoCount === 0 ? `
+        <div style="padding:40px 20px;color:var(--text-secondary);text-align:center;">
+          <div style="font-size:2rem;margin-bottom:6px;">📷</div>
+          <div>No media files found in printer memory.</div>
         </div>
-      ` : `
-        <div style="padding:40px 20px;color:var(--text-secondary);">
-          <div style="font-size:2rem;margin-bottom:8px;">📷</div>
-          <div>No timelapse snapshots found in printer memory.</div>
-          <div style="font-size:0.75rem;margin-top:4px;">Snapmaker captures photos automatically upon print layer changes.</div>
+      ` : ''}
+    </div>
+
+    <!-- Media Tab Controls -->
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:12px;">
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-secondary btn-sm" id="tab-videos-btn" style="background:var(--accent);color:#fff;">
+          📹 Timelapse Videos (${media.totalVideoCount})
+        </button>
+        <button class="btn btn-ghost btn-sm" id="tab-snapshots-btn">
+          📸 Layer Photos (${media.totalSnapshotCount})
+        </button>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="btn-refresh-media-list" style="font-size:0.75rem;">
+        🔄 Refresh List
+      </button>
+    </div>
+
+    <!-- Videos List Container -->
+    <div id="timelapse-videos-list" class="timelapse-media-list">
+      ${media.videos.length > 0 ? media.videos.map((v, i) => `
+        <div class="timelapse-item">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">
+            <span style="font-size:1.3rem;">🎬</span>
+            <div class="timelapse-info-col">
+              <div class="timelapse-name" title="${escapeHtml(v.filename)}">${escapeHtml(v.filename)}</div>
+              <div class="timelapse-meta">
+                <span>📦 ${v.sizeFormatted}</span>
+                <span>•</span>
+                <span>📅 ${v.dateFormatted}</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn btn-secondary btn-sm play-video-btn" data-url="${v.url}" data-name="${escapeHtml(v.filename)}">
+              ▶️ Play
+            </button>
+            <a href="${v.url}" download="${v.filename}" class="btn btn-primary btn-sm" title="Direct Download MP4" target="_blank">
+              ⬇️ Download
+            </a>
+          </div>
+        </div>
+      `).join('') : `
+        <div style="text-align:center;padding:24px;color:var(--text-secondary);font-size:0.85rem;">
+          No timelapse video recordings found in printer memory.
         </div>
       `}
     </div>
 
-    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;">
-      <button class="btn btn-secondary btn-sm" id="btn-refresh-cam">
-        🔄 Refresh Latest Snapshot
-      </button>
-      <a href="${snapshot ? snapshot.url : '#'}" target="_blank" class="btn btn-ghost btn-sm ${!snapshot ? 'disabled' : ''}">
-        🔍 Full Resolution Photo
-      </a>
+    <!-- Snapshots List Container (Hidden by default) -->
+    <div id="timelapse-snapshots-list" class="timelapse-media-list" style="display:none;">
+      ${media.snapshots.length > 0 ? media.snapshots.map((s, i) => `
+        <div class="timelapse-item">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">
+            <span style="font-size:1.3rem;">🖼️</span>
+            <div class="timelapse-info-col">
+              <div class="timelapse-name" title="${escapeHtml(s.filename)}">${escapeHtml(s.filename)}</div>
+              <div class="timelapse-meta">
+                <span>📦 ${s.sizeFormatted}</span>
+                <span>•</span>
+                <span>📅 ${s.dateFormatted}</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn btn-secondary btn-sm view-photo-btn" data-url="${s.url}" data-name="${escapeHtml(s.filename)}">
+              🔍 View
+            </button>
+            <a href="${s.url}" download="${s.filename}" class="btn btn-primary btn-sm" title="Download JPG" target="_blank">
+              ⬇️
+            </a>
+          </div>
+        </div>
+      `).join('') : `
+        <div style="text-align:center;padding:24px;color:var(--text-secondary);font-size:0.85rem;">
+          No layer photo snapshots found.
+        </div>
+      `}
     </div>
   `;
 
   showModal({
-    title: 'Snapmaker Camera Feed & Snapshots',
+    title: 'Snapmaker Camera Feed & Timelapses',
     body,
     confirmText: 'Done',
     onConfirm: () => {
+      const videoEl = document.getElementById('active-preview-video');
+      if (videoEl) videoEl.pause();
       closeModal();
     },
   });
 
   setTimeout(() => {
-    document.getElementById('btn-refresh-cam')?.addEventListener('click', async () => {
-      showToast('Refreshing...', 'info');
-      const updated = await fetchLatestSnapshot(printer.iotHost, printer.iotPort || 80);
-      const img = document.getElementById('camera-snapshot-img');
-      if (img && updated) {
-        img.src = `${updated.url}&t=${Date.now()}`;
-        showToast('Snapshot refreshed!', 'success');
+    const videoEl = document.getElementById('active-preview-video');
+    const imgEl = document.getElementById('active-preview-img');
+    const captionEl = document.getElementById('active-preview-caption');
+    const tabVideosBtn = document.getElementById('tab-videos-btn');
+    const tabSnapshotsBtn = document.getElementById('tab-snapshots-btn');
+    const videosList = document.getElementById('timelapse-videos-list');
+    const snapshotsList = document.getElementById('timelapse-snapshots-list');
+
+    // Switch Tabs
+    tabVideosBtn?.addEventListener('click', () => {
+      tabVideosBtn.style.background = 'var(--accent)';
+      tabVideosBtn.style.color = '#fff';
+      tabSnapshotsBtn.style.background = 'transparent';
+      tabSnapshotsBtn.style.color = 'var(--text-secondary)';
+      if (videosList) videosList.style.display = 'flex';
+      if (snapshotsList) snapshotsList.style.display = 'none';
+    });
+
+    tabSnapshotsBtn?.addEventListener('click', () => {
+      tabSnapshotsBtn.style.background = 'var(--accent)';
+      tabSnapshotsBtn.style.color = '#fff';
+      tabVideosBtn.style.background = 'transparent';
+      tabVideosBtn.style.color = 'var(--text-secondary)';
+      if (snapshotsList) snapshotsList.style.display = 'flex';
+      if (videosList) videosList.style.display = 'none';
+    });
+
+    // Play Video in top player
+    document.querySelectorAll('.play-video-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const url = btn.dataset.url;
+        const name = btn.dataset.name;
+        if (imgEl) imgEl.style.display = 'none';
+        if (videoEl) {
+          videoEl.style.display = 'block';
+          videoEl.src = url;
+          videoEl.play();
+        }
+        if (captionEl) {
+          captionEl.style.display = 'block';
+          captionEl.textContent = `Playing: ${name}`;
+        }
+      });
+    });
+
+    // View Photo in top preview
+    document.querySelectorAll('.view-photo-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const url = btn.dataset.url;
+        const name = btn.dataset.name;
+        if (videoEl) {
+          videoEl.pause();
+          videoEl.style.display = 'none';
+        }
+        if (imgEl) {
+          imgEl.style.display = 'block';
+          imgEl.src = url;
+        }
+        if (captionEl) {
+          captionEl.style.display = 'block';
+          captionEl.textContent = `Viewing: ${name}`;
+        }
+      });
+    });
+
+    // Bulk Downloader for All Timelapses
+    document.getElementById('btn-download-all-videos')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-download-all-videos');
+      if (!media.videos || media.videos.length === 0) return;
+
+      btn.disabled = true;
+      showToast(`Starting sequential download for ${media.videos.length} videos...`, 'info');
+
+      for (let i = 0; i < media.videos.length; i++) {
+        const v = media.videos[i];
+        btn.textContent = `Downloading (${i + 1}/${media.videos.length})...`;
+        const a = document.createElement('a');
+        a.href = v.url;
+        a.download = v.filename;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        await new Promise(r => setTimeout(r, 600));
       }
+
+      btn.textContent = '✓ All Downloaded';
+      showToast(`🎉 Download complete for all ${media.videos.length} timelapses!`, 'success');
+    });
+
+    // Refresh button
+    document.getElementById('btn-refresh-media-list')?.addEventListener('click', () => {
+      closeModal();
+      openCameraSnapshotModal(printerId, container);
     });
   }, 50);
+}
+
+// ─── Printable Workshop Job Traveler Card (Phase 2 & 3) ────────
+function openJobTravelerModal(printerId, container) {
+  const printer = getById('printers', printerId);
+  if (!printer) return;
+
+  const jobName = printer.currentJob || 'Precision Production Component';
+  const order = printer.orderId ? getById('orders', printer.orderId) : null;
+  const clientName = order?.clientName || 'In-House Production';
+  const hours = Math.floor((printer.totalMinutes || 180) / 60);
+  const mins = (printer.totalMinutes || 180) % 60;
+  const grams = printer.jobGrams || 142.8;
+
+  const body = `
+    <div class="traveler-sheet">
+      <!-- Header -->
+      <div class="traveler-header">
+        <div>
+          <div style="font-size:1.3rem;font-weight:800;letter-spacing:-0.5px;">MADE N MORE | 3D PRINTING LABS</div>
+          <div style="font-size:0.8rem;color:#444;margin-top:2px;">WORKSHOP MANUFACTURING JOB TRAVELER & QC ROUTER</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:1.05rem;font-weight:700;">JOB #${(printer.orderId || printer.id).slice(0, 8).toUpperCase()}</div>
+          <div style="font-size:0.78rem;color:#555;">Date: ${formatDate(new Date())}</div>
+        </div>
+      </div>
+
+      <!-- Specification Grid -->
+      <div class="traveler-grid">
+        <div style="border:1px solid #ddd;border-radius:6px;padding:10px;">
+          <div style="font-size:0.75rem;font-weight:700;color:#666;text-transform:uppercase;">Part / Assembly Description</div>
+          <div style="font-size:0.95rem;font-weight:700;margin-top:4px;">${escapeHtml(jobName)}</div>
+          <div style="font-size:0.8rem;color:#555;margin-top:2px;">Client / Account: <strong>${escapeHtml(clientName)}</strong></div>
+        </div>
+
+        <div style="border:1px solid #ddd;border-radius:6px;padding:10px;">
+          <div style="font-size:0.75rem;font-weight:700;color:#666;text-transform:uppercase;">Production Machine & Spool</div>
+          <div style="font-size:0.95rem;font-weight:700;margin-top:4px;">${escapeHtml(printer.name)} (${escapeHtml(printer.model)})</div>
+          <div style="font-size:0.8rem;color:#555;margin-top:2px;">Loaded Spool: <strong>${escapeHtml(printer.loadedSpool || 'Production Filament')}</strong></div>
+        </div>
+      </div>
+
+      <!-- Parameters Table -->
+      <table class="traveler-table">
+        <thead>
+          <tr>
+            <th>Estimated Mass</th>
+            <th>Print Duration</th>
+            <th>Nozzle Target</th>
+            <th>Bed Target</th>
+            <th>Layer Height</th>
+            <th>Infill Profile</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>${grams} g</strong></td>
+            <td><strong>${hours}h ${mins}m</strong></td>
+            <td>${printer.targetNozzleTemp || 215}°C</td>
+            <td>${printer.targetBedTemp || 60}°C</td>
+            <td>0.20 mm</td>
+            <td>20% Gyroid</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Quality Control Sign-Off Table -->
+      <div style="font-weight:700;font-size:0.85rem;margin-bottom:6px;">POST-PRINT QUALITY INSPECTION & DISPATCH CHECKLIST</div>
+      <table class="traveler-table">
+        <thead>
+          <tr>
+            <th style="width:40px;">Check</th>
+            <th>Inspection Parameter</th>
+            <th>Acceptance Criteria</th>
+            <th style="width:140px;">Verified By / Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align:center;">[ &nbsp; ]</td>
+            <td><strong>Dimensional Accuracy</strong></td>
+            <td>Critical dimensions within ±0.20mm (Digital Caliper)</td>
+            <td>_____________ mm</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;">[ &nbsp; ]</td>
+            <td><strong>Mass Audit</strong></td>
+            <td>Finished weight within ±3% of sliced mass (${grams}g)</td>
+            <td>_____________ g</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;">[ &nbsp; ]</td>
+            <td><strong>Layer Adhesion & Perimeter Bonding</strong></td>
+            <td>Zero delamination, solid wall fusion</td>
+            <td>Pass / Fail</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;">[ &nbsp; ]</td>
+            <td><strong>Surface Finish & Cosmetics</strong></td>
+            <td>No stringing, z-banding, or severe scarring</td>
+            <td>Pass / Fail</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;">[ &nbsp; ]</td>
+            <td><strong>Client Photo Proof</strong></td>
+            <td>High-res photo sent to client via WhatsApp</td>
+            <td>Timestamp: ______</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;">[ &nbsp; ]</td>
+            <td><strong>Packaging & Dispatch Label</strong></td>
+            <td>Protective bubble-wrap & box sealed</td>
+            <td>Tracking / Courier: ___</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Operator Signature -->
+      <div style="display:flex;justify-content:space-between;margin-top:16px;padding-top:10px;border-top:1px solid #ccc;font-size:0.82rem;">
+        <div>Manufacturing Operator: _______________________</div>
+        <div>QC Inspector Sign-off: _______________________</div>
+      </div>
+    </div>
+  `;
+
+  showModal({
+    title: 'Print Workshop Job Traveler Card',
+    body,
+    confirmText: '🖨️ Print Sheet (Ctrl+P)',
+    confirmClass: 'btn-primary',
+    onConfirm: () => {
+      window.print();
+    },
+  });
 }
 
 // ─── Direct Slicer Ingestion to Printer ─────────────────────────

@@ -244,6 +244,9 @@ function renderKanbanCard(order, currentStage) {
           <button class="btn-icon btn-sm" data-action="generate-invoice" data-id="${order.id}" title="Generate Tax Invoice" style="padding:2px 4px;font-size:0.75rem;">
             ${ICONS.invoice}
           </button>
+          <button class="btn-icon btn-sm" data-action="print-traveler" data-id="${order.id}" title="Print Job Traveler & QC Sheet" style="padding:2px 4px;font-size:0.75rem;">
+            📋
+          </button>
           <button class="btn-icon btn-sm" data-action="log-payment" data-id="${order.id}" title="Log Milestone Payment" style="padding:2px 4px;font-size:0.75rem;">
             ${ICONS.plus}
           </button>
@@ -343,6 +346,9 @@ function renderOrderCard(order) {
           </button>
         </div>
         <div class="flex gap-sm">
+          <button class="btn btn-ghost btn-sm" data-action="print-traveler" data-id="${order.id}">
+            📋 Job Traveler
+          </button>
           <button class="btn btn-ghost btn-sm" data-action="generate-invoice" data-id="${order.id}">
             ${ICONS.invoice} Tax Invoice
           </button>
@@ -492,6 +498,7 @@ function bindEvents(container) {
       if (action === 'log-payment') openLogPaymentModal(id, container);
       else if (action === 'edit-order') openEditOrderModal(id, container);
       else if (action === 'generate-invoice') openInvoiceModal(id);
+      else if (action === 'print-traveler') openOrderJobTravelerModal(id);
       else if (action === 'print-receipt') openReceiptModal(orderId, paymentId);
       else if (action === 'convert-quote') convertQuoteToOrder(id, container);
       else if (action === 'delete-order') confirmDeleteOrder(id, container);
@@ -1314,3 +1321,148 @@ function confirmDeleteOrder(orderId, container) {
     },
   });
 }
+
+// ─── Printable Workshop Job Traveler Card for Orders ──────────
+function openOrderJobTravelerModal(orderId) {
+  const order = getById('orders', orderId);
+  if (!order) return;
+
+  const items = order.items || [];
+  const priority = PRIORITY_CONFIG[order.priority || 'standard'] || PRIORITY_CONFIG.standard;
+  const stage = getOrderStage(order);
+  const stageObj = KANBAN_STAGES.find(s => s.id === stage) || KANBAN_STAGES[3];
+
+  const body = `
+    <div class="traveler-sheet">
+      <!-- Header -->
+      <div class="traveler-header">
+        <div>
+          <div style="font-size:1.3rem;font-weight:800;letter-spacing:-0.5px;">MADE N MORE | 3D PRINTING LABS</div>
+          <div style="font-size:0.8rem;color:#444;margin-top:2px;">WORKSHOP MANUFACTURING JOB TRAVELER & QC ROUTER</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:1.05rem;font-weight:700;">ORDER #${order.id.slice(0, 8).toUpperCase()}</div>
+          <div style="font-size:0.78rem;color:#555;">Date: ${formatDate(order.createdAt || new Date())}</div>
+        </div>
+      </div>
+
+      <!-- Specification Grid -->
+      <div class="traveler-grid">
+        <div style="border:1px solid #ddd;border-radius:6px;padding:10px;">
+          <div style="font-size:0.75rem;font-weight:700;color:#666;text-transform:uppercase;">Client & Project</div>
+          <div style="font-size:0.95rem;font-weight:700;margin-top:4px;">${escapeHtml(order.clientName)}</div>
+          <div style="font-size:0.8rem;color:#555;margin-top:2px;">Contact: ${escapeHtml(order.clientPhone || '—')}</div>
+          <div style="font-size:0.8rem;color:#555;margin-top:2px;">Project: ${escapeHtml(order.description || 'Custom 3D Printing')}</div>
+        </div>
+
+        <div style="border:1px solid #ddd;border-radius:6px;padding:10px;">
+          <div style="font-size:0.75rem;font-weight:700;color:#666;text-transform:uppercase;">Production Priority & Routing</div>
+          <div style="font-size:0.95rem;font-weight:700;margin-top:4px;">Priority: ${priority.label.toUpperCase()}</div>
+          <div style="font-size:0.8rem;color:#555;margin-top:2px;">Current Stage: <strong>${stageObj.label}</strong></div>
+          <div style="font-size:0.8rem;color:#555;margin-top:2px;">Contract Value: <strong>${formatCurrency(order.totalAmount)}</strong></div>
+        </div>
+      </div>
+
+      <!-- Itemized Assemblies / Components Table -->
+      <div style="font-weight:700;font-size:0.85rem;margin-bottom:6px;">PRODUCTION PARTS & MATERIAL SPECIFICATIONS</div>
+      <table class="traveler-table">
+        <thead>
+          <tr>
+            <th style="width:30px;">#</th>
+            <th>Part / Component Name</th>
+            <th>Material Spec</th>
+            <th>Colorway</th>
+            <th style="text-align:center;">Qty</th>
+            <th>Print Profile</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.length > 0 ? items.map((it, idx) => `
+            <tr>
+              <td style="text-align:center;">${idx + 1}</td>
+              <td><strong>${escapeHtml(it.name)}</strong></td>
+              <td>${escapeHtml(it.material || 'PLA+')}</td>
+              <td>${escapeHtml(it.color || 'Default')}</td>
+              <td style="text-align:center;font-weight:700;">${it.quantity || 1}</td>
+              <td>0.20mm Standard / 20% Infill</td>
+              <td>[ &nbsp; ] Printed</td>
+            </tr>
+          `).join('') : `
+            <tr>
+              <td colspan="7" style="text-align:center;color:#666;">No individual parts itemized. Refer to main order description.</td>
+            </tr>
+          `}
+        </tbody>
+      </table>
+
+      <!-- Quality Control Sign-Off Table -->
+      <div style="font-weight:700;font-size:0.85rem;margin-bottom:6px;">POST-PRINT QUALITY INSPECTION & DISPATCH CHECKLIST</div>
+      <table class="traveler-table">
+        <thead>
+          <tr>
+            <th style="width:40px;">Check</th>
+            <th>Inspection Parameter</th>
+            <th>Acceptance Criteria</th>
+            <th style="width:150px;">Verified By / Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align:center;">[ &nbsp; ]</td>
+            <td><strong>Dimensional Accuracy</strong></td>
+            <td>Critical dimensions within ±0.20mm (Digital Caliper)</td>
+            <td>_____________ mm</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;">[ &nbsp; ]</td>
+            <td><strong>Mass & Density Audit</strong></td>
+            <td>Finished weight within ±3% of sliced model grams</td>
+            <td>_____________ g</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;">[ &nbsp; ]</td>
+            <td><strong>Layer Adhesion & Perimeter Bonding</strong></td>
+            <td>Zero delamination, solid wall fusion</td>
+            <td>Pass / Fail</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;">[ &nbsp; ]</td>
+            <td><strong>Surface Finish & Cosmetics</strong></td>
+            <td>No stringing, z-banding, or severe scarring</td>
+            <td>Pass / Fail</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;">[ &nbsp; ]</td>
+            <td><strong>Client Photo Proof</strong></td>
+            <td>High-res photo sent to client via WhatsApp</td>
+            <td>Timestamp: ______</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;">[ &nbsp; ]</td>
+            <td><strong>Packaging & Dispatch Label</strong></td>
+            <td>Protective bubble-wrap & box sealed</td>
+            <td>Courier / Tracking: ___</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Operator Signature -->
+      <div style="display:flex;justify-content:space-between;margin-top:16px;padding-top:10px;border-top:1px solid #ccc;font-size:0.82rem;">
+        <div>Manufacturing Operator: _______________________</div>
+        <div>QC Inspector Sign-off: _______________________</div>
+      </div>
+    </div>
+  `;
+
+  showModal({
+    title: 'Print Workshop Job Traveler Card',
+    body,
+    confirmText: '🖨️ Print Sheet (Ctrl+P)',
+    confirmClass: 'btn-primary',
+    onConfirm: () => {
+      window.print();
+    },
+  });
+}
+

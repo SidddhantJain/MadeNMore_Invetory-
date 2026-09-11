@@ -83,6 +83,72 @@ export async function fetchLatestSnapshot(ip = '192.168.0.144', port = 80) {
 }
 
 /**
+ * Fetch all timelapse videos (.mp4) and snapshots (.jpg) with metadata
+ */
+export async function fetchAllCameraMedia(ip = '192.168.0.144', port = 80) {
+  const host = port == 80 ? ip : `${ip}:${port}`;
+  const url = `http://${host}/server/files/list?root=camera`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const files = data.result || [];
+
+    const formatBytes = (bytes) => {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    };
+
+    const videos = files
+      .filter(f => f.path.toLowerCase().endsWith('.mp4'))
+      .sort((a, b) => (b.modified || 0) - (a.modified || 0))
+      .map(f => ({
+        filename: f.path,
+        url: `http://${host}/server/files/camera/${encodeURIComponent(f.path)}`,
+        sizeBytes: f.size,
+        sizeFormatted: formatBytes(f.size),
+        dateFormatted: new Date((f.modified || 0) * 1000).toLocaleString(),
+        rawModified: f.modified,
+      }));
+
+    const snapshots = files
+      .filter(f => f.path.toLowerCase().endsWith('.jpg') || f.path.toLowerCase().endsWith('.png'))
+      .sort((a, b) => (b.modified || 0) - (a.modified || 0))
+      .map(f => ({
+        filename: f.path,
+        url: `http://${host}/server/files/camera/${encodeURIComponent(f.path)}`,
+        sizeBytes: f.size,
+        sizeFormatted: formatBytes(f.size),
+        dateFormatted: new Date((f.modified || 0) * 1000).toLocaleString(),
+        rawModified: f.modified,
+      }));
+
+    const totalVideoBytes = videos.reduce((s, v) => s + (v.sizeBytes || 0), 0);
+
+    return {
+      success: true,
+      videos,
+      snapshots,
+      totalVideoCount: videos.length,
+      totalSnapshotCount: snapshots.length,
+      totalVideoSizeFormatted: formatBytes(totalVideoBytes),
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.message,
+      videos: [],
+      snapshots: [],
+      totalVideoCount: 0,
+      totalSnapshotCount: 0,
+      totalVideoSizeFormatted: '0 MB',
+    };
+  }
+}
+
+/**
  * Auto-discover Snapmaker printer IP on local subnet if IP shifted
  */
 export async function scanLocalSubnet(baseSubnet = '192.168.0', onProgress = null) {
