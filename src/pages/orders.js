@@ -984,12 +984,15 @@ function openInvoiceModal(orderId) {
     <!-- Printable Invoice Sheet -->
     <div class="invoice-sheet" id="invoice-sheet-container">
       <div class="invoice-header">
-        <div>
-          <div class="invoice-brand">MADE N MORE</div>
-          <div class="invoice-subbrand">3D PRINTING LABS • DIGITAL MANUFACTURING</div>
-          <div style="font-size:0.8rem;color:#4b5563;margin-top:4px;">
-            Pune, Maharashtra, India • Snapmaker U1 Production Hub<br/>
-            Email: contact@madenmore.in • Web: madenmore.in
+        <div style="display:flex;align-items:center;gap:14px;">
+          <img src="/Logo/logo.png" alt="Made N More Logo" style="height:65px;width:auto;object-fit:contain;" />
+          <div>
+            <div class="invoice-brand" style="margin:0;line-height:1.1;">MADE N MORE</div>
+            <div class="invoice-subbrand" style="color:#7c3aed;font-weight:700;">3D PRINTING LABS • DIGITAL MANUFACTURING</div>
+            <div style="font-size:0.8rem;color:#4b5563;margin-top:4px;line-height:1.3;">
+              Pune, Maharashtra, India • Snapmaker U1 Production Hub<br/>
+              Email: contact@madenmore.in • Web: madenmore.in
+            </div>
           </div>
         </div>
         <div style="text-align:right;">
@@ -1148,9 +1151,12 @@ function openReceiptModal(orderId, paymentId) {
 
     <div class="receipt-sheet" id="receipt-sheet-container">
       <div style="display:flex;justify-content:space-between;border-bottom:2px solid #111827;padding-bottom:12px;margin-bottom:14px;">
-        <div>
-          <div style="font-size:1.2rem;font-weight:800;letter-spacing:-0.5px;">MADE N MORE • 3D PRINTING LABS</div>
-          <div style="font-size:0.75rem;color:#4b5563;">Digital Manufacturing & Milestone Accounting • Pune, India</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <img src="/Logo/logo.png" alt="Made N More Logo" style="height:50px;width:auto;object-fit:contain;" />
+          <div>
+            <div style="font-size:1.15rem;font-weight:800;letter-spacing:-0.5px;color:#1e1b4b;">MADE N MORE • 3D PRINTING LABS</div>
+            <div style="font-size:0.75rem;color:#4b5563;">Digital Manufacturing & Milestone Accounting • Pune, India</div>
+          </div>
         </div>
         <div style="text-align:right;">
           <div style="font-weight:800;font-size:0.95rem;color:#111827;">PAYMENT VOUCHER</div>
@@ -1336,9 +1342,12 @@ function openOrderJobTravelerModal(orderId) {
     <div class="traveler-sheet">
       <!-- Header -->
       <div class="traveler-header">
-        <div>
-          <div style="font-size:1.3rem;font-weight:800;letter-spacing:-0.5px;">MADE N MORE | 3D PRINTING LABS</div>
-          <div style="font-size:0.8rem;color:#444;margin-top:2px;">WORKSHOP MANUFACTURING JOB TRAVELER & QC ROUTER</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <img src="/Logo/logo.png" alt="Made N More Logo" style="height:48px;width:auto;object-fit:contain;" />
+          <div>
+            <div style="font-size:1.25rem;font-weight:800;letter-spacing:-0.5px;color:#1e1b4b;">MADE N MORE | 3D PRINTING LABS</div>
+            <div style="font-size:0.78rem;color:#444;margin-top:2px;">WORKSHOP MANUFACTURING JOB TRAVELER & QC ROUTER</div>
+          </div>
         </div>
         <div style="text-align:right;">
           <div style="font-size:1.05rem;font-weight:700;">ORDER #${order.id.slice(0, 8).toUpperCase()}</div>

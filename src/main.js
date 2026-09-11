@@ -41,7 +41,7 @@ function renderSidebar() {
 
   sidebar.innerHTML = `
     <div class="sidebar-logo">
-      <div class="sidebar-logo-icon">M</div>
+      <img src="/Logo/logo.png" alt="Made N More" style="height:40px;width:auto;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(139,92,246,0.3));" />
       <div class="sidebar-logo-text">
         <h2>Made N More</h2>
         <span>3D Print Manager</span>

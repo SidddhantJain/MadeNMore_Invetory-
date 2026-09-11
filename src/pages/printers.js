@@ -472,6 +472,63 @@ async function pollSinglePhysicalPrinter(printerId, container) {
   }
 }
 
+// ─── Direct Blob Downloader (Solves Chrome cross-origin UUID download issue) ───
+async function downloadMediaBlob(url, filename, knownSizeBytes = 0, progressCallback = null) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const headerLength = parseInt(response.headers.get('content-length'), 10);
+    const totalBytes = (headerLength && !isNaN(headerLength)) ? headerLength : knownSizeBytes;
+    let blob;
+
+    if (totalBytes > 0 && response.body && window.ReadableStream) {
+      let loaded = 0;
+      const reader = response.body.getReader();
+      const chunks = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        loaded += value.length;
+        if (progressCallback && totalBytes > 0) {
+          const pct = Math.min(99, Math.round((loaded / totalBytes) * 100));
+          progressCallback(pct);
+        }
+      }
+      if (progressCallback) progressCallback(100);
+      const mimeType = filename.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg';
+      blob = new Blob(chunks, { type: mimeType });
+    } else {
+      blob = await response.blob();
+      if (progressCallback) progressCallback(100);
+    }
+
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    return true;
+  } catch (err) {
+    console.error('Blob download failed, using direct download:', err);
+    // Direct link fallback without target="_blank"
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return false;
+  }
+}
+
 // ─── Timelapse Video Gallery & Bulk Downloader ────────────────
 async function openCameraSnapshotModal(printerId, container) {
   const printer = getById('printers', printerId);
@@ -553,9 +610,9 @@ async function openCameraSnapshotModal(printerId, container) {
             <button class="btn btn-secondary btn-sm play-video-btn" data-url="${v.url}" data-name="${escapeHtml(v.filename)}">
               ▶️ Play
             </button>
-            <a href="${v.url}" download="${v.filename}" class="btn btn-primary btn-sm" title="Direct Download MP4" target="_blank">
+            <button class="btn btn-primary btn-sm download-single-media-btn" data-url="${v.url}" data-filename="${escapeHtml(v.filename)}" data-size="${v.size || 0}" title="Save MP4 with exact filename">
               ⬇️ Download
-            </a>
+            </button>
           </div>
         </div>
       `).join('') : `
@@ -584,9 +641,9 @@ async function openCameraSnapshotModal(printerId, container) {
             <button class="btn btn-secondary btn-sm view-photo-btn" data-url="${s.url}" data-name="${escapeHtml(s.filename)}">
               🔍 View
             </button>
-            <a href="${s.url}" download="${s.filename}" class="btn btn-primary btn-sm" title="Download JPG" target="_blank">
+            <button class="btn btn-primary btn-sm download-single-media-btn" data-url="${s.url}" data-filename="${escapeHtml(s.filename)}" data-size="${s.size || 0}" title="Save JPG">
               ⬇️
-            </a>
+            </button>
           </div>
         </div>
       `).join('') : `
@@ -674,29 +731,62 @@ async function openCameraSnapshotModal(printerId, container) {
       });
     });
 
-    // Bulk Downloader for All Timelapses
+    // Single Media Blob Downloader (solves Chrome cross-origin UUID issue)
+    document.querySelectorAll('.download-single-media-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const url = btn.dataset.url;
+        const filename = btn.dataset.filename;
+        const size = parseInt(btn.dataset.size, 10) || 0;
+        const origText = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.textContent = '⏳ 0%';
+
+        try {
+          await downloadMediaBlob(url, filename, size, (pct) => {
+            btn.textContent = `⏳ ${pct}%`;
+          });
+          btn.textContent = '✓ Saved!';
+          showToast(`Saved ${filename} to your Downloads!`, 'success');
+        } catch (err) {
+          btn.textContent = '⚠️ Error';
+          showToast(`Failed to download ${filename}`, 'error');
+        }
+
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.innerHTML = origText;
+        }, 5000);
+      });
+    });
+
+    // Bulk Downloader for All Timelapses with sequential progress
     document.getElementById('btn-download-all-videos')?.addEventListener('click', async () => {
       const btn = document.getElementById('btn-download-all-videos');
       if (!media.videos || media.videos.length === 0) return;
 
       btn.disabled = true;
-      showToast(`Starting sequential download for ${media.videos.length} videos...`, 'info');
+      showToast(`Starting sequential download of ${media.videos.length} timelapses...`, 'info');
 
       for (let i = 0; i < media.videos.length; i++) {
         const v = media.videos[i];
-        btn.textContent = `Downloading (${i + 1}/${media.videos.length})...`;
-        const a = document.createElement('a');
-        a.href = v.url;
-        a.download = v.filename;
-        a.target = '_blank';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        btn.textContent = `⏳ (${i + 1}/${media.videos.length}): 0%`;
+
+        await downloadMediaBlob(v.url, v.filename, v.size || 0, (pct) => {
+          btn.textContent = `⏳ (${i + 1}/${media.videos.length}): ${pct}%`;
+        });
+
+        // Brief delay between files to avoid browser rate limit
         await new Promise(r => setTimeout(r, 600));
       }
 
       btn.textContent = '✓ All Downloaded';
-      showToast(`🎉 Download complete for all ${media.videos.length} timelapses!`, 'success');
+      showToast(`🎉 Downloaded all ${media.videos.length} timelapses with exact filenames!`, 'success');
+
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = `⬇️ Download All Timelapses (${media.totalVideoCount})`;
+      }, 5000);
     });
 
     // Refresh button
@@ -723,9 +813,12 @@ function openJobTravelerModal(printerId, container) {
     <div class="traveler-sheet">
       <!-- Header -->
       <div class="traveler-header">
-        <div>
-          <div style="font-size:1.3rem;font-weight:800;letter-spacing:-0.5px;">MADE N MORE | 3D PRINTING LABS</div>
-          <div style="font-size:0.8rem;color:#444;margin-top:2px;">WORKSHOP MANUFACTURING JOB TRAVELER & QC ROUTER</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <img src="/Logo/logo.png" alt="Made N More Logo" style="height:48px;width:auto;object-fit:contain;" />
+          <div>
+            <div style="font-size:1.25rem;font-weight:800;letter-spacing:-0.5px;color:#1e1b4b;">MADE N MORE | 3D PRINTING LABS</div>
+            <div style="font-size:0.78rem;color:#444;margin-top:2px;">WORKSHOP MANUFACTURING JOB TRAVELER & QC ROUTER</div>
+          </div>
         </div>
         <div style="text-align:right;">
           <div style="font-size:1.05rem;font-weight:700;">JOB #${(printer.orderId || printer.id).slice(0, 8).toUpperCase()}</div>
