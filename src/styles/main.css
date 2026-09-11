@@ -2407,3 +2407,23 @@ h4 { font-size: 1rem; }
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
+
+/* Slicer G-Code Drop Zone */
+.slicer-drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-md);
+  padding: 22px 18px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  transition: all var(--transition);
+  margin-bottom: var(--space-lg);
+}
+
+.slicer-drop-zone:hover,
+.slicer-drop-zone.drag-active {
+  border-color: var(--accent);
+  background: rgba(139, 92, 246, 0.08);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+}
+

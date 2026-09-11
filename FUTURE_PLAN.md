@@ -1,155 +1,189 @@
-# 🗺️ Made N More & 3D Printing Labs — Master Product Roadmap & Internal Business Blueprint
-### Internal Operating System (DMOS) for 3D Printing Business Operations & Print Farm Management
-**Document Version:** 3.0 (Operator-Centric Business Architecture)  
-**Status:** Active Internal Specification  
-**Strategic Focus:** **100% Internal Business Operations** (Client portals moved to distant horizon)  
+# 🗺️ Made N More & 3D Printing Labs — Master Operator Roadmap & Business System
+### The Maker-CEO Operating System: 100% Focused on Streamlining Internal Workshop Management, Profitability & Machine Fleets
+**Document Version:** 4.0 (Owner & Operator Command Center)  
+**Target User:** Business Owner & Workshop Technicians  
+**Primary Goal:** Automate daily administrative friction, quoting, fleet monitoring, material tracking, and job accounting so the owner can focus on making and scaling.  
 
 ---
 
-## 🎯 Strategic Direction: Operator-First Business Architecture
+## 🎯 Strategic Direction: Built For YOU, The Business Owner
 
-> **Primary Objective**: Build a robust, centralized internal management platform exclusively for the business owner and workshop technicians. The system manages hardware fleets, job queues, material inventory, milestone finances, and maintenance without exposing any public-facing portals to outside clients in the initial and growth stages.
+> **Zero Client-Facing Bloat**: The customer will **NOT** be seeing or using this software. All customer-facing portals, public tracking links, and external web slicers are deferred to a distant, late-stage horizon. 
+> 
+> **Every single screen, calculation, and button is built as an internal support tool for YOU to run, manage, quote, and scale the business effortlessly.**
 
 ```mermaid
 graph TB
-    subgraph Internal Workshop & Hardware Farm
-        P1[Multiple 3D Printer Fleet Management]
-        P2[Machine Status: Idle / Printing / Maintenance]
-        P3[Job Queue Scheduling & Bed Allocation]
-        P4[Telemetry: Nozzle & Bed Temps, Run Hours]
+    subgraph Slicer & Workshop Automation
+        T1[G-Code & 3MF Slicer Metadata Drop-Zone]
+        T2[Instant Gram & Duration Auto-Extraction]
+        T3[Automatic Spool Inventory Gram Deduction]
     end
 
-    subgraph Operations & Inventory Control
-        I1[Spool Inventory & Tare Weight Tracking]
-        I2[Numakers 3D Visualizer & Color Swatches]
-        I3[Workshop Consumables: Resins, Nozzles, Inserts]
-        I4[Dehumidification & Moisture Tracking]
+    subgraph Hardware Farm Control Hub
+        F1[Multi-Printer Fleet Dashboard: Snapmaker U1, Voron, Bambu]
+        F2[Live Telemetry: Nozzle/Bed Temperatures & Heaters]
+        F3[Job Queue Dispatcher & Plate Status]
+        F4[Running Hours Odometer & Maintenance Preventative Alerts]
     end
 
-    subgraph Commercial & Accounting Hub
-        O1[Internal Production Kanban Board]
-        O2[Multi-Part Assembly Line Itemization]
-        O3[Milestone Installment Collection Ledger]
-        O4[GST Invoicing & Payment Voucher Generator]
-        O5[P&L Financials & Scrap Loss Accounting]
+    subgraph High-Velocity Quoting & Cash Flow
+        C1[Instant Quoter with 1-Click WhatsApp Copy]
+        C2[Milestone Installment Tracking: 28% / 22% / 50%]
+        C3[GST Tax Invoicing & Payment Receipts]
+        C4[Daily Net Cash Flow, Material Expenses & P&L]
     end
 
-    P1 <--> O1
-    O1 --> I1
-    P4 --> O5
-    O3 <--> O4
-    I1 --> O5
+    subgraph Material & Consumables Accounting
+        M1[Numakers 3D Visualizer & Color Swatches]
+        M2[Gross Tare Weight Scale Calculation]
+        M3[Scrap Loss & Failed Print Recovery Log]
+    end
+
+    T1 --> T2 --> T3
+    T2 --> C1
+    T2 --> F3
+    F1 <--> F2
+    F3 --> F1
+    C1 --> C2
+    C2 --> C3
+    T3 --> M1
+    M3 --> C4
 ```
 
 ---
 
-## 🗓️ Phased Development Roadmap
+## 🗓️ Master Phased Roadmap: The Operator's Support System
 
-| Phase | Strategic Domain | Focus Area | Status |
-| :---: | :--- | :--- | :---: |
-| **Phase 1** | **Commercial Workflow & Billing** | Multi-Item Assemblies, 8-Stage Kanban, GST Invoicing & Milestone Receipts | **✅ DELIVERED** |
-| **Phase 2** | **Multiple Printer Farm Interface** | Multi-Printer Fleet Dashboard, Job Scheduling, Machine Telemetry & Maintenance Logs | **🔥 IN PROGRESS** |
-| **Phase 3** | **Deep Material & Consumables** | Gram-Level Tare Weights, QR Spool Labels, Resin & Workshop Consumables Registry | **PLANNED** |
-| **Phase 4** | **Financial P&L & Scrap Intelligence** | Machine Depreciation, Scrap Loss Accounting, Monthly P&L, Batch Supplier Margins | **PLANNED** |
-| **Phase 5** | **Distant Horizon: Client Web Portal** | External Customer Tracking & Public Web Slicing (Deferred until farm exceeds 10 machines) | **DISTANT / DEFERRED** |
-
----
-
-## 📌 Phase-by-Phase Technical Specifications
-
----
-
-### ✅ PHASE 1: Production Pipeline & Milestone Billing (DELIVERED)
-- **Multi-Part Assembly Itemization**: Grouping complex client assemblies (e.g. Drone arm assembly with ABS, PETG-HS, and TPU parts) under a single master order with automatic subtotal computation.
-- **8-Stage Interactive Kanban Board**: From `Draft/Quote` to `Advance Paid`, `Slicing`, `In Queue`, `Printing`, `QA`, `Ready for Dispatch`, and `Settled`.
-- **GST Invoicing Engine**: Automated HSN/SAC codes (SAC 9988 & HSN 3916), intra-state (CGST 9% + SGST 9%) vs inter-state (IGST 18%), milestone payment tallies, and clean `@media print` A4 exports.
-- **Milestone Payment Receipts**: Individual voucher generator for logging installment percentages (28% deposit, 22% midway, 50% settlement).
-
----
-
-### 🖨️ PHASE 2: Multiple 3D Printer Fleet Farm Interface (CURRENT FOCUS)
-
-Equip the workshop with a dedicated, real-time control room for managing multiple 3D printers across brands (Snapmaker U1, CoreXY, Bambu Lab, modified bedslingers).
-
-#### 2.1 Multi-Printer Fleet Dashboard (`/#/printers`)
-- **Visual Machine Cards**:
-  - **Machine Identity**: Name, Model (e.g. *Snapmaker U1 #01*, *Voron CoreXY #02*, *Bambu P1S #03*), Serial/IP address, and build volume ($X \times Y \times Z$).
-  - **Live Operational Status**:
-    - `🟢 Idle / Ready`: Plate cleared, awaiting next queue item.
-    - `🟡 Heating / Bed Leveling`: Reaching target bed/nozzle temperatures.
-    - `🔵 Printing`: Actively extruding with elapsed time, remaining time, and progress ring.
-    - `🟠 Paused / Filament Runout`: Awaiting operator intervention.
-    - `🔴 Maintenance / Nozzle Swap`: Machine offline for servicing.
-  - **Thermal Telemetry**: Live indicators for Extruder Temp (Actual vs Target e.g. `245°C / 250°C`) and Heatbed Temp (`80°C / 80°C`).
-  - **Assigned Spool**: Quick indicator showing which spool/color from the inventory is currently loaded into the extruder.
-
-#### 2.2 Farm Job Assignment & Queue Dispatcher
-- Direct bridge between the **Orders Kanban Board** and the **Printer Fleet**:
-  - In Kanban `In Print Queue`, click **"Assign to Printer"** to route a part to an available machine.
-  - Assign nozzle diameter (e.g. 0.4mm for fine parts, 0.6mm for high-flow engineering parts).
-  - Track estimated vs actual print durations to refine future pricing calculations.
-
-#### 2.3 Machine Health, Operating Hours & Maintenance Logbook
-- **Odometer Running Hours**: Cumulative meter tracking total machine operating hours.
-- **Preventative Maintenance Reminders**:
-  - Nozzle wear replacement interval (alert every 250 hours of abrasive PETG/CF printing).
-  - Linear rail and lead screw lubrication alert (every 300 hours).
-  - Timing belt tensioning check (every 500 hours).
-- **Service History Log**: Date, technician notes, parts replaced, and downtime duration.
-
----
-
-### 🧵 PHASE 3: Deep Material & Consumable Inventory Control
-
-Move beyond basic spool counts into precise gram accounting, physical barcode tags, and workshop consumables.
-
-#### 3.1 Gram-Level Tare & Net Weight Sync
-- **Brand Tare Weight Profiles**:
-  - Numakers reusable spool core: 210g
-  - eSun cardboard core: 230g
-  - Bambu reusable spool: 250g
-- **Digital Scale Integration**: Enter gross weight directly; the system deducts tare to give remaining usable grams.
-
-#### 3.2 Spool Barcode & Thermal QR Label Generator
-- One-click printing of thermal sticker labels (50x30mm) for every incoming spool with unique QR code.
-- Quick webcam/mobile scan to pull up spool stats and log deductions.
-
-#### 3.3 Workshop Consumables & Resins Registry
-- Track secondary materials:
-  - MSLA/SLA photopolymer resins (ml volume, exposure profiles).
-  - Isopropyl Alcohol (IPA 99%) in Liters.
-  - Replacement brass & hardened steel nozzles.
-  - Brass threaded heat-set inserts (M2, M3, M4, M5 packs).
+```text
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ PHASE 1 (Delivered): Production Kanban Pipeline & Milestone Billing                   │
+│ • Multi-item part assemblies under one order                                           │
+│ • 8-Stage visual Kanban board with drag & drop                                         │
+│ • GST Tax Invoicing (SAC 9988 / HSN 3916) with A4 PDF print view                       │
+│ • Individual milestone installment receipt vouchers (28% deposit, 22% proof, 50% final)│
+└────────────────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ PHASE 2 (Delivered & Expanding): Multiple 3D Printer Farm & Fleet Telemetry           │
+│ • Real-time status cards (Snapmaker U1, Voron CoreXY, Bambu Lab P1S, Ender Plus)       │
+│ • Extruder & bed thermal telemetry (Actual vs Target temperatures)                     │
+│ • 1-Click job dispatching from active orders queue                                     │
+│ • Operating hours odometer & preventative maintenance alerts (nozzles, rails, belts)   │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ PHASE 3 (Current Build): Owner Support Tools & Slicer File Ingestion                  │
+│ • In-Browser G-Code & 3MF parser: Drag & drop sliced files to auto-read grams & hours  │
+│ • 1-Click WhatsApp Quote Generator: Pre-formatted WhatsApp messages for clients       │
+│ • Quick Stock Adjustment steppers on Numakers spools                                   │
+│ • Scrap Loss & Failed Print Logger: Log spaghetti/failures and reclaim costs           │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ PHASE 4: Deep Material Accounting & Digital Scale Sync                                │
+│ • Tare weight database (Numakers 210g, eSun 230g, Bambu 250g)                          │
+│ • Digital scale tare subtraction (Gross input -> Net usable filament calculation)      │
+│ • Physical thermal QR label printing (50x30mm) for spool racks                         │
+│ • Workshop consumables: Resins (ml), nozzles, IPA, and heat-set brass threaded inserts │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ PHASE 5: Internal Financial Intelligence & Workshop P&L                                │
+│ • Monthly Profit & Loss statements (Gross Revenue vs Raw Filament vs Electricity)     │
+│ • Machine depreciation & wear reserves allocation                                      │
+│ • Material consumption forecasting (which colors to reorder before running dry)        │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ PHASE 6 (Distant Scaled Horizon): Client Self-Service Portals                          │
+│ • Public tracking links (Deferred until printer farm exceeds 10 machines)              │
+│ • Web-to-print automated client slicing                                                │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-### 📊 PHASE 4: Internal P&L, Scrap Loss & Farm Intelligence
+## 🛠️ Owner Support Tool Specifications
 
-Ensure operational profitability with automated cost allocation and scrap loss accounting.
+### 1. 📂 Slicer Metadata Ingestion Tool (G-Code & 3MF Parser)
+- **Problem**: When slicing in Bambu Studio, OrcaSlicer, or Cura, the owner has to manually read the grams and hours and retype them into calculator and orders.
+- **Solution**:
+  - Drag and drop the `.gcode` or `.3mf` file directly into the app.
+  - Browser FileReader reads the comment metadata:
+    ```text
+    ; filament used [g] = 142.85
+    ; total estimated time = 3h 24m 12s
+    ; nozzle_temperature = 245
+    ; bed_temperature = 80
+    ```
+  - Instantly populates:
+    - Mass in grams: `142.85 g`
+    - Print duration: `3.4 hrs`
+    - Recommended quote price: `₹[Amount]`
+  - Two 1-Click Action Buttons:
+    1. **"🚀 Dispatch to Printer & Reserve Spool"**: Routes the part directly to an idle machine in the fleet.
+    2. **"📋 Copy WhatsApp Quote"**: Formats the price for the client.
 
-#### 4.1 Scrap Loss & Failed Print Log
-- Dedicated failure logging: When a print fails, log wasted material mass and lost machine hours with failure root cause (bed adhesion, power loss, clogged nozzle, filament tangle).
-- Automatically deducts wasted material from inventory and logs loss into the financial ledger.
+### 2. 💬 1-Click WhatsApp Quick-Quote Generator
+- **Problem**: Manually typing out quotes on WhatsApp is slow, inconsistent, and takes valuable time.
+- **Solution**:
+  - In the Calculator, clicking **"📋 Copy WhatsApp Quote"** generates an elegant, business-ready WhatsApp message formatted with emojis and bold styling:
+    ```text
+    🖨️ *Made N More | 3D Printing Labs — Production Quote*
+    ---------------------------------------------
+    *Project:* Custom Prototype Part
+    *Material:* PETG-HS (Pitch Black)
+    *Part Mass:* 142g | *Est. Print Time:* 3.5 hrs
+    *Manufacturing Tolerances:* ±0.2mm (Industrial FDM)
 
-#### 4.2 Comprehensive Profit & Loss (P&L) Reports
-- Monthly, quarterly, and annual breakdown:
-  - Gross Revenue from Milestones Collected.
-  - Direct Material Costs (Filament consumed + scrap waste).
-  - Machine Electricity & Depreciation Reserves.
-  - Net Shop Operating Profit Margins.
+    💰 *Total Job Quote:* ₹680 (All inclusive)
+    📦 *Standard Milestone Terms:*
+    • 30% Advance to schedule production
+    • Balance upon photo proof & dispatch
+
+    _UPI / Bank Transfer details available upon confirmation._
+    ```
+  - Clicking **"💬 Open WhatsApp"** opens WhatsApp Web directly with this message ready to send!
+
+### 3. 📉 Scrap Loss & Failed Print Recovery Tracker
+- **Problem**: In 3D printing, prints occasionally fail due to bed detachment, power drops, or filament knots. If unrecorded, inventory numbers drift and the owner absorbs hidden losses.
+- **Solution**:
+  - In the Printers interface or Inventory, click **"⚠️ Log Scrap Loss"**:
+    - Select Printer & Loaded Spool.
+    - Enter grams wasted before failure (e.g. `65 grams`).
+    - Select Root Cause: `Bed Detachment`, `Nozzle Clog`, `Filament Tangle`, `Power Outage`, `Dimensional Error`.
+  - Automatically:
+    - Deducts 65g from the active spool.
+    - Logs an expense entry in the Financial Ledger under `Scrap Loss (Material Waste)`.
+    - Updates machine failure statistics to highlight troublesome filaments or print settings.
+
+### 4. ⚖️ Workshop Digital Scale Tare Subtraction
+- **Problem**: Physical spools always include the heavy plastic/cardboard spool core. Entering remaining weight requires mental math.
+- **Solution**:
+  - Select Spool Brand: **Numakers (210g)**, **eSun (230g)**, **Bambu (250g)**.
+  - Put the spool on your workshop digital kitchen scale and type the gross reading (e.g. `840 g`).
+  - App instantly computes: $\text{Net Usable Filament} = 840\text{g} - 210\text{g} = 630\text{g}$.
+  - Color bar turns orange when net filament drops below 150g, and red when below 50g.
 
 ---
 
-### 🌐 PHASE 5: Distant Horizon — Client Self-Service Portal (DEFERRED)
+## 📈 Owner Productivity Benchmarks
 
-> [!NOTE]
-> **Strategic Timing**: This phase is deliberately deferred until internal farm operations, fleet telemetry, and material accounting are 100% automated and the print fleet scales beyond 10 production machines.
-
-- **Public Order Tracker (`/#/track?order=ID`)**: Read-only progress link for clients to view production stages and photos.
-- **Client Web Slicer / 3D Model Quoter**: In-browser Three.js STL volume estimator for self-service client quotation.
-- **Integrated Payment Gateway**: Razorpay / Stripe webhook integration for direct credit card / net banking settlements.
+| Manual Workflow Before | With Made N More Owner Tools | Time Saved |
+| :--- | :--- | :---: |
+| Retyping slicer grams into calculator | Drop `.gcode` file; auto-extracts in 1 sec | **90% faster** |
+| Typing quotes and payment terms on WhatsApp | 1-Click WhatsApp formatted quote copy | **3 mins saved per lead** |
+| Mental math subtracting spool tare weight | Select brand & enter scale gross reading | **100% accurate** |
+| Calculating monthly revenue vs filament cost | Automated P&L ledger with milestone tallies | **Instant visibility** |
+| Remembering when to lubricate printer rails | Automated running hours odometer alert | **Zero surprise breakdowns** |
 
 ---
 
-*Authored for: Made N More Management & 3D Printing Labs Operations*  
-*Focus: 100% Internal Operational Excellence*
+*Authored for: The Business Owner, Made N More & 3D Printing Labs*  
+*Operating Hub: Pune, Maharashtra, India*
