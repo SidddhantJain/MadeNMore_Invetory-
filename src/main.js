@@ -14,6 +14,7 @@ import { renderTransactions } from './pages/transactions.js';
 import { renderCalculator } from './pages/calculator.js';
 import { renderSettings } from './pages/settings.js';
 import { showToast } from './components/toast.js';
+import { showModal } from './components/modal.js';
 import { ICONS } from './utils/icons.js';
 import { debounce, escapeHtml } from './utils/helpers.js';
 
@@ -27,6 +28,42 @@ const ROUTES = [
   { hash: '#/calculator',    label: 'Calculator',   icon: 'calculator',   render: renderCalculator,   section: 'tools' },
   { hash: '#/settings',      label: 'Settings',     icon: 'settings',     render: renderSettings,     section: 'system' },
 ];
+
+function openLANServerModal() {
+  const lanUrl = 'http://192.168.0.143:3000';
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(lanUrl)}`;
+
+  showModal({
+    title: '📱 Mobile & Tablet LAN Server Access',
+    body: `
+      <div style="text-align:center;padding:12px 0;">
+        <div style="background:#fff;padding:16px;border-radius:12px;display:inline-block;margin-bottom:14px;box-shadow:0 8px 24px rgba(0,0,0,0.5);">
+          <img src="${qrUrl}" alt="LAN QR" style="width:200px;height:200px;display:block;" />
+        </div>
+        <div style="font-size:1.15rem;font-weight:700;color:var(--text-primary);margin-bottom:6px;">
+          Scan with your Phone / Tablet Camera
+        </div>
+        <p style="font-size:0.85rem;color:var(--text-secondary);max-width:400px;margin:0 auto 16px;">
+          This laptop is currently running as your home/workshop server on <strong>0.0.0.0:3000</strong>. Connect any device to your home Wi-Fi and open the link below:
+        </p>
+        <div style="background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;max-width:400px;margin:0 auto;">
+          <a href="${lanUrl}" target="_blank" style="font-size:0.95rem;color:#4ade80;font-family:monospace;font-weight:700;text-decoration:none;">
+            ${lanUrl}
+          </a>
+          <button class="btn btn-ghost btn-sm" id="btn-copy-lan-url">Copy</button>
+        </div>
+      </div>
+    `,
+    confirmText: 'Close',
+    onReady: () => {
+      document.getElementById('btn-copy-lan-url')?.addEventListener('click', () => {
+        navigator.clipboard.writeText(lanUrl).then(() => {
+          showToast('Copied LAN Server URL to clipboard!', 'success');
+        });
+      });
+    },
+  });
+}
 
 // ─── Sidebar ────────────────────────────────────────────────
 function renderSidebar() {
@@ -74,10 +111,14 @@ function renderSidebar() {
       `).join('')}
     </nav>
 
-    <div class="sidebar-footer">
+    <div class="sidebar-footer" style="padding:14px 16px;border-top:1px solid var(--border);">
+      <div class="lan-server-badge" id="btn-lan-portal" style="margin-bottom:10px;width:100%;justify-content:center;" title="Click to view Phone/Tablet QR Code">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;"></span>
+        <span>Wi-Fi: 192.168.0.143:3000</span>
+      </div>
       <div class="sidebar-footer-info">
         Made N More v1.0<br/>
-        <span style="opacity:0.5">Ctrl+K to search • Ctrl+Z to undo</span>
+        <span style="opacity:0.5">Ctrl+K search • Ctrl+Z undo</span>
       </div>
     </div>
   `;
@@ -87,6 +128,11 @@ function renderSidebar() {
     item.addEventListener('click', () => {
       window.location.hash = item.dataset.route;
     });
+  });
+
+  // Bind LAN server portal modal
+  sidebar.querySelector('#btn-lan-portal')?.addEventListener('click', () => {
+    openLANServerModal();
   });
 }
 

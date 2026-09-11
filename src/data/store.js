@@ -21,9 +21,12 @@ function getDefaultData() {
   return {
     filaments: [],
     transactions: [],
+    orders: [],
+    printers: [],
+    consumables: [],
     settings: {
       machineCost: 115881.32,
-      electricityRate: 8,
+      electricityRate: 8.5,
       printerPower: 350,
       defaultMarkup: 30,
       businessName: 'Made N More',

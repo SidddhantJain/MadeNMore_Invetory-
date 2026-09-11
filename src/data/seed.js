@@ -3,7 +3,7 @@
  * Pre-populates the store with all 40 filaments and existing transaction data
  */
 
-import { create, isSeeded, markSeeded, getSettings } from './store.js';
+import { create, isSeeded, markSeeded, getSettings, getAll } from './store.js';
 
 /** Hex color map for all filament colors */
 const FILAMENT_COLORS = {
@@ -339,32 +339,163 @@ export const PRINTER_SEED = [
   },
 ];
 
+/** Workshop hardware & consumables seed data */
+export const CONSUMABLES_SEED = [
+  {
+    name: 'M2 Brass Threaded Heat-Set Inserts',
+    category: 'Fasteners & Inserts',
+    specs: 'M2 x 3.0mm (OD 3.2mm), Knurled Brass',
+    stock: 250,
+    unit: 'pcs',
+    minStock: 50,
+    costPerUnit: 1.8,
+    location: 'Bin A1 - Hardware Drawer',
+    supplier: 'Robu.in',
+  },
+  {
+    name: 'M3 Brass Threaded Heat-Set Inserts',
+    category: 'Fasteners & Inserts',
+    specs: 'M3 x 4.0mm (OD 4.6mm), High-Torque Knurled',
+    stock: 420,
+    unit: 'pcs',
+    minStock: 100,
+    costPerUnit: 2.2,
+    location: 'Bin A2 - Hardware Drawer',
+    supplier: 'Robu.in',
+  },
+  {
+    name: 'M4 Brass Threaded Heat-Set Inserts',
+    category: 'Fasteners & Inserts',
+    specs: 'M4 x 5.0mm (OD 6.0mm), Knurled Brass',
+    stock: 180,
+    unit: 'pcs',
+    minStock: 40,
+    costPerUnit: 3.5,
+    location: 'Bin A3 - Hardware Drawer',
+    supplier: 'Robu.in',
+  },
+  {
+    name: 'M5 Brass Threaded Heat-Set Inserts',
+    category: 'Fasteners & Inserts',
+    specs: 'M5 x 6.5mm (OD 7.0mm), Knurled Heavy-Duty',
+    stock: 35,
+    unit: 'pcs',
+    minStock: 50,
+    costPerUnit: 4.8,
+    location: 'Bin A4 - Hardware Drawer',
+    supplier: 'Robu.in',
+  },
+  {
+    name: 'Hardened Steel Nozzle 0.4mm (High Flow)',
+    category: 'Maintenance & Spare Parts',
+    specs: '0.4mm, M6 Thread, Abrasion Resistant for Carbon/Glow',
+    stock: 4,
+    unit: 'pcs',
+    minStock: 2,
+    costPerUnit: 450,
+    location: 'Toolbox Shelf 1',
+    supplier: '3D Hub India',
+  },
+  {
+    name: 'Hardened Steel Nozzle 0.6mm (Rapid Draft)',
+    category: 'Maintenance & Spare Parts',
+    specs: '0.6mm, M6 Thread, High Volumetric Flow Rate',
+    stock: 1,
+    unit: 'pcs',
+    minStock: 2,
+    costPerUnit: 480,
+    location: 'Toolbox Shelf 1',
+    supplier: '3D Hub India',
+  },
+  {
+    name: '99.9% High Purity Isopropyl Alcohol (IPA)',
+    category: 'Chemicals & Post-Processing',
+    specs: '5 Litres Canister, 99.9% Tech Grade',
+    stock: 3.5,
+    unit: 'L',
+    minStock: 2.0,
+    costPerUnit: 220,
+    location: 'Chemical Storage Cabinet',
+    supplier: 'Chemical Supply Direct',
+  },
+  {
+    name: 'Engineering Tough Photopolymer Resin',
+    category: 'Chemicals & Post-Processing',
+    specs: '1000g Grey, 405nm UV Resin for High Impact Parts',
+    stock: 1200,
+    unit: 'g',
+    minStock: 500,
+    costPerUnit: 2.4,
+    location: 'UV Storage Shelf',
+    supplier: 'Anycubic India',
+  },
+  {
+    name: 'PTFE Super Lube Synthetic Grease with Syncolon',
+    category: 'Maintenance & Spare Parts',
+    specs: '85g Tube, Lead Screws & Linear Rods Lubricant',
+    stock: 2,
+    unit: 'tubes',
+    minStock: 1,
+    costPerUnit: 650,
+    location: 'Printer Service Kit',
+    supplier: 'Amazon Business',
+  },
+  {
+    name: 'Double-Sided Textured PEI Spring Steel Sheet (256x256)',
+    category: 'Maintenance & Spare Parts',
+    specs: 'Gold Powder-Coated Textured PEI for High Adhesion',
+    stock: 2,
+    unit: 'sheets',
+    minStock: 1,
+    costPerUnit: 1450,
+    location: 'Plate Rack B',
+    supplier: 'Bambu Lab India',
+  },
+];
+
 /** Seed the database with initial data */
 export function seedDatabase() {
-  if (isSeeded()) return false;
+  const seeded = isSeeded();
 
-  // Seed filaments
-  FILAMENT_SEED.forEach(f => {
-    create('filaments', f);
-  });
+  if (!seeded) {
+    // Seed filaments
+    FILAMENT_SEED.forEach(f => {
+      create('filaments', f);
+    });
 
-  // Seed transactions
-  TRANSACTION_SEED.forEach(t => {
-    create('transactions', t);
-  });
+    // Seed transactions
+    TRANSACTION_SEED.forEach(t => {
+      create('transactions', t);
+    });
 
-  // Seed orders
-  ORDER_SEED.forEach(o => {
-    create('orders', o);
-  });
+    // Seed orders
+    ORDER_SEED.forEach(o => {
+      create('orders', o);
+    });
 
-  // Seed printers
-  PRINTER_SEED.forEach(p => {
-    create('printers', p);
-  });
+    // Seed printers
+    PRINTER_SEED.forEach(p => {
+      create('printers', p);
+    });
 
-  markSeeded();
-  return true;
+    // Seed consumables
+    CONSUMABLES_SEED.forEach(c => {
+      create('consumables', c);
+    });
+
+    markSeeded();
+    return true;
+  }
+
+  // If already seeded previously but consumables collection is empty, populate it
+  const existingConsumables = getAll('consumables');
+  if (!existingConsumables || existingConsumables.length === 0) {
+    CONSUMABLES_SEED.forEach(c => {
+      create('consumables', c);
+    });
+  }
+
+  return false;
 }
 
 /** Get hex color for a filament name */
@@ -373,3 +504,4 @@ export function getFilamentHex(name) {
 }
 
 export { FILAMENT_COLORS };
+

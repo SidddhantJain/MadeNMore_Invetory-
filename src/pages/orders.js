@@ -949,7 +949,7 @@ function openLogPaymentModal(orderId, container) {
   });
 }
 
-// ─── GST Tax Invoice Generator Modal ─────────────────────────
+// ─── GST Tax Invoice Generator Modal (Overhauled) ─────────────
 function openInvoiceModal(orderId) {
   const order = getById('orders', orderId);
   if (!order) return;
@@ -961,61 +961,105 @@ function openInvoiceModal(orderId) {
 
   const invoiceNum = `INV-2026-${(order.id || '0000').slice(-4).toUpperCase()}`;
   const invoiceDate = todayStr();
+  const upiVpa = 'siddhant@upi';
+  let _taxMode = 'intra';
+  let _discount = 0;
+  let _delivery = 0;
+
+  function calculateGrand() {
+    const sub = order.totalAmount;
+    const taxable = Math.max(0, sub - _discount);
+    let taxAmt = 0;
+    if (_taxMode === 'intra' || _taxMode === 'inter') {
+      taxAmt = taxable * 0.18;
+    }
+    return (taxable + taxAmt + _delivery).toFixed(2);
+  }
+
+  const initialGrand = calculateGrand();
+  const upiUrl = `upi://pay?pa=${encodeURIComponent(upiVpa)}&pn=${encodeURIComponent('Made N More 3D Printing Labs')}&am=${initialGrand}&cu=INR&tn=${encodeURIComponent(`Invoice ${invoiceNum}`)}`;
+  const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(upiUrl)}`;
 
   const body = `
-    <div style="margin-bottom:var(--space-md);display:flex;justify-content:space-between;align-items:center;background:var(--bg-card);padding:10px 14px;border-radius:var(--radius-md);border:1px solid var(--border);">
-      <div style="font-size:0.82rem;color:var(--text-secondary);">
-        Tax Mode:
-        <label style="margin-left:8px;margin-right:12px;cursor:pointer;">
-          <input type="radio" name="inv-tax-mode" value="intra" checked /> Intra-State (CGST 9% + SGST 9%)
-        </label>
-        <label style="margin-right:12px;cursor:pointer;">
-          <input type="radio" name="inv-tax-mode" value="inter" /> Inter-State (IGST 18%)
-        </label>
-        <label style="cursor:pointer;">
-          <input type="radio" name="inv-tax-mode" value="none" /> Exempt / Inclusive
-        </label>
+    <!-- Top Configuration Bar (Hidden during Print) -->
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 16px;margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:12px;font-size:0.82rem;">
+          <span style="font-weight:700;color:var(--text-primary);">Tax Mode:</span>
+          <label style="cursor:pointer;display:flex;align-items:center;gap:4px;">
+            <input type="radio" name="inv-tax-mode" value="intra" checked /> Intra-State (CGST 9% + SGST 9%)
+          </label>
+          <label style="cursor:pointer;display:flex;align-items:center;gap:4px;">
+            <input type="radio" name="inv-tax-mode" value="inter" /> Inter-State (IGST 18%)
+          </label>
+          <label style="cursor:pointer;display:flex;align-items:center;gap:4px;">
+            <input type="radio" name="inv-tax-mode" value="none" /> Exempt / Inclusive
+          </label>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary btn-sm" id="btn-print-inv">
+            ${ICONS.printer} Print / Save A4 PDF
+          </button>
+        </div>
       </div>
-      <button class="btn btn-primary btn-sm" id="btn-print-inv">
-        ${ICONS.printer} Print / Save PDF
-      </button>
+
+      <!-- Quick Adjustments -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:10px;font-size:0.8rem;border-top:1px solid var(--border);padding-top:10px;">
+        <div>
+          <label style="color:var(--text-secondary);display:block;margin-bottom:2px;">Client GSTIN / Tax ID:</label>
+          <input class="form-input" id="inv-client-gstin" placeholder="e.g. 27ABCDE1234F1Z5" value="${escapeHtml(order.clientGstin || '')}" style="font-size:0.8rem;padding:4px 8px;" />
+        </div>
+        <div>
+          <label style="color:var(--text-secondary);display:block;margin-bottom:2px;">Special Discount (₹):</label>
+          <input class="form-input" type="number" id="inv-discount-input" min="0" value="0" style="font-size:0.8rem;padding:4px 8px;" />
+        </div>
+        <div>
+          <label style="color:var(--text-secondary);display:block;margin-bottom:2px;">Delivery / Courier (₹):</label>
+          <input class="form-input" type="number" id="inv-delivery-input" min="0" value="0" style="font-size:0.8rem;padding:4px 8px;" />
+        </div>
+      </div>
     </div>
 
     <!-- Printable Invoice Sheet -->
     <div class="invoice-sheet" id="invoice-sheet-container">
       <div class="invoice-header">
-        <div style="display:flex;align-items:center;gap:14px;">
+        <div style="display:flex;align-items:center;gap:16px;">
           <img src="/Logo/logo.png" alt="Made N More Logo" style="height:65px;width:auto;object-fit:contain;" />
           <div>
-            <div class="invoice-brand" style="margin:0;line-height:1.1;">MADE N MORE</div>
-            <div class="invoice-subbrand" style="color:#7c3aed;font-weight:700;">3D PRINTING LABS • DIGITAL MANUFACTURING</div>
-            <div style="font-size:0.8rem;color:#4b5563;margin-top:4px;line-height:1.3;">
-              Pune, Maharashtra, India • Snapmaker U1 Production Hub<br/>
+            <div class="invoice-brand" style="font-size:1.4rem;font-weight:900;letter-spacing:-0.5px;color:#1e1b4b;margin:0;line-height:1.1;">MADE N MORE</div>
+            <div class="invoice-subbrand" style="color:#7c3aed;font-weight:700;font-size:0.75rem;letter-spacing:0.8px;">3D PRINTING LABS • DIGITAL MANUFACTURING HUB</div>
+            <div style="font-size:0.78rem;color:#4b5563;margin-top:4px;line-height:1.35;">
+              Pune, Maharashtra, India • High-Speed Rapid Prototyping<br/>
+              GSTIN: <strong>27AABCU9603R1ZM</strong> • State Code: <strong>27</strong><br/>
               Email: contact@madenmore.in • Web: madenmore.in
             </div>
           </div>
         </div>
         <div style="text-align:right;">
           <div class="invoice-meta-title">TAX INVOICE</div>
-          <div style="font-size:0.85rem;color:#374151;font-weight:600;"># ${invoiceNum}</div>
+          <div style="font-size:0.95rem;color:#374151;font-weight:700;"># ${invoiceNum}</div>
           <div style="font-size:0.8rem;color:#6b7280;margin-top:2px;">Date: ${formatDate(invoiceDate)}</div>
+          <div style="font-size:0.75rem;color:#6b7280;">Place of Supply: Maharashtra (27)</div>
         </div>
       </div>
 
       <div class="invoice-details-grid">
-        <div>
-          <strong style="color:#111827;display:block;margin-bottom:4px;">BILLED TO:</strong>
-          <div style="font-weight:700;font-size:1rem;color:#111827;">${escapeHtml(order.clientName)}</div>
-          ${order.clientPhone ? `<div style="color:#4b5563;">Phone: ${escapeHtml(order.clientPhone)}</div>` : ''}
-          ${order.clientEmail ? `<div style="color:#4b5563;">Email: ${escapeHtml(order.clientEmail)}</div>` : ''}
-          ${order.clientGstin ? `<div style="color:#4b5563;font-weight:600;">GSTIN: ${escapeHtml(order.clientGstin)}</div>` : ''}
+        <div style="border:1px solid #e5e7eb;border-radius:6px;padding:12px;">
+          <strong style="color:#111827;display:block;margin-bottom:4px;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;">BILLED TO:</strong>
+          <div style="font-weight:700;font-size:1.05rem;color:#111827;">${escapeHtml(order.clientName)}</div>
+          ${order.clientPhone ? `<div style="color:#4b5563;font-size:0.82rem;margin-top:2px;">Contact: ${escapeHtml(order.clientPhone)}</div>` : ''}
+          ${order.clientEmail ? `<div style="color:#4b5563;font-size:0.82rem;">Email: ${escapeHtml(order.clientEmail)}</div>` : ''}
+          <div id="inv-disp-client-gstin" style="color:#4b5563;font-size:0.82rem;font-weight:600;margin-top:2px;">
+            ${order.clientGstin ? `GSTIN: ${escapeHtml(order.clientGstin)}` : 'Consumer / B2C Non-GST'}
+          </div>
         </div>
-        <div>
-          <strong style="color:#111827;display:block;margin-bottom:4px;">SUPPLIER DETAILS:</strong>
-          <div style="color:#374151;">Made N More Labs</div>
-          <div style="color:#4b5563;">State: Maharashtra (State Code: 27)</div>
-          <div style="color:#4b5563;">SAC Code: <strong>9988</strong> (Digital Fabrication Services)</div>
-          <div style="color:#4b5563;">HSN Code: <strong>3916</strong> (Technical Polymers)</div>
+
+        <div style="border:1px solid #e5e7eb;border-radius:6px;padding:12px;">
+          <strong style="color:#111827;display:block;margin-bottom:4px;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;">SERVICE & PRODUCTION CLASSIFICATION:</strong>
+          <div style="color:#374151;font-size:0.85rem;">Fabrication: <strong>High-Precision FDM 3D Printing</strong></div>
+          <div style="color:#4b5563;font-size:0.82rem;margin-top:2px;">Service Accounting Code (SAC): <strong>9988</strong></div>
+          <div style="color:#4b5563;font-size:0.82rem;">Harmonized System Code (HSN): <strong>3916</strong> (Polymers)</div>
+          <div style="color:#4b5563;font-size:0.82rem;">Contract Milestone: <strong>${order.kanbanStage ? order.kanbanStage.replace(/_/g, ' ').toUpperCase() : 'PRODUCTION'}</strong></div>
         </div>
       </div>
 
@@ -1024,8 +1068,8 @@ function openInvoiceModal(orderId) {
         <thead>
           <tr>
             <th style="width:5%;">#</th>
-            <th style="width:45%;">Item & Specifications</th>
-            <th style="width:15%;">Material</th>
+            <th style="width:45%;">Item / Part Specifications</th>
+            <th style="width:15%;">Material & Finish</th>
             <th style="width:10%;text-align:center;">Qty</th>
             <th style="width:12%;text-align:right;">Rate</th>
             <th style="width:13%;text-align:right;">Amount</th>
@@ -1036,7 +1080,7 @@ function openInvoiceModal(orderId) {
             <tr>
               <td>${i + 1}</td>
               <td><strong>${escapeHtml(it.name)}</strong></td>
-              <td>${it.material || 'PLA+'}</td>
+              <td>${it.material || 'PLA+'} ${it.color ? `(${escapeHtml(it.color)})` : ''}</td>
               <td style="text-align:center;">${it.quantity || 1}</td>
               <td style="text-align:right;">${formatCurrency(it.unitPrice || 0)}</td>
               <td style="text-align:right;font-weight:600;">${formatCurrency(it.subtotal || 0)}</td>
@@ -1045,23 +1089,29 @@ function openInvoiceModal(orderId) {
         </tbody>
       </table>
 
-      <!-- Totals & Milestones -->
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div style="max-width:320px;font-size:0.8rem;color:#4b5563;">
-          <strong style="color:#111827;display:block;margin-bottom:4px;">MILESTONE PAYMENT TALLY:</strong>
-          ${(order.payments && order.payments.length > 0) ? order.payments.map((p, idx) => `
-            <div>• Inst. #${idx+1} (${formatDate(p.date)}): <strong>${formatCurrency(p.amount)}</strong> (${(p.percentage || 0).toFixed(1)}%)</div>
-          `).join('') : '<div>• No advance payments received yet.</div>'}
-          <div style="margin-top:6px;font-weight:600;color:${stats.remaining <= 0 ? '#16a34a' : '#ea580c'};">
-            ${stats.remaining <= 0 ? '✓ Fully Paid & Settled' : `Outstanding Balance Due: ${formatCurrency(stats.remaining)}`}
+      <!-- Totals, Milestones & UPI Payment QR -->
+      <div class="invoice-totals-section">
+        <!-- UPI QR Scan Card -->
+        <div class="upi-payment-card">
+          <img src="${qrImgUrl}" alt="UPI QR Code" class="upi-qr-img" id="inv-upi-qr" />
+          <div>
+            <div style="font-size:0.75rem;font-weight:800;color:#1e1b4b;text-transform:uppercase;letter-spacing:0.5px;">Instant UPI Payment</div>
+            <div style="font-size:1.15rem;font-weight:800;color:#16a34a;margin-top:2px;" id="inv-upi-amount">₹${initialGrand}</div>
+            <div style="font-size:0.72rem;color:#4b5563;margin-top:2px;">Scan with GPay, PhonePe, Paytm, or BHIM</div>
+            <div style="font-size:0.7rem;color:#374151;margin-top:4px;">UPI VPA: <strong style="color:#4338ca;">${upiVpa}</strong></div>
           </div>
         </div>
 
-        <div class="invoice-totals">
-          <table class="invoice-totals-table">
+        <!-- Totals Calculation Table -->
+        <div style="min-width:300px;">
+          <table class="invoice-totals-table" style="width:100%;">
             <tr>
               <td style="color:#6b7280;">Subtotal:</td>
               <td style="text-align:right;font-weight:600;" id="inv-subtotal">${formatCurrency(order.totalAmount)}</td>
+            </tr>
+            <tr id="inv-row-discount" style="display:none;color:#16a34a;">
+              <td>Discount:</td>
+              <td style="text-align:right;" id="inv-discount-val">-₹0</td>
             </tr>
             <tr id="inv-tax-row-cgst">
               <td style="color:#6b7280;">CGST (9%):</td>
@@ -1075,56 +1125,123 @@ function openInvoiceModal(orderId) {
               <td style="color:#6b7280;">IGST (18%):</td>
               <td style="text-align:right;" id="inv-igst">${formatCurrency(order.totalAmount * 0.18)}</td>
             </tr>
+            <tr id="inv-row-delivery" style="display:none;color:#6b7280;">
+              <td>Delivery / Courier:</td>
+              <td style="text-align:right;" id="inv-delivery-val">+₹0</td>
+            </tr>
             <tr class="invoice-totals-grand">
-              <td>Grand Total:</td>
-              <td style="text-align:right;color:#111827;" id="inv-grand-total">${formatCurrency(order.totalAmount * 1.18)}</td>
+              <td>Total Payable:</td>
+              <td style="text-align:right;color:#111827;" id="inv-grand-total">₹${initialGrand}</td>
             </tr>
           </table>
+
+          <!-- Settlement status -->
+          <div style="margin-top:10px;font-size:0.8rem;text-align:right;font-weight:600;color:${stats.remaining <= 0 ? '#16a34a' : '#ea580c'};">
+            ${stats.remaining <= 0 ? '✓ Order 100% Fully Settled' : `Milestone Balance Due: ${formatCurrency(stats.remaining)}`}
+          </div>
         </div>
       </div>
 
-      <div style="margin-top:24px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:0.75rem;color:#6b7280;display:flex;justify-content:space-between;">
-        <div>Thank you for partnering with <strong>3D Printing Labs / Made N More</strong>!</div>
-        <div>Standard FDM Manufacturing Tolerances: ±0.2mm</div>
+      <!-- Footer & Signature -->
+      <div style="margin-top:24px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:0.75rem;color:#6b7280;display:flex;justify-content:space-between;align-items:flex-end;">
+        <div>
+          <div>Thank you for manufacturing with <strong>3D Printing Labs / Made N More</strong>!</div>
+          <div style="margin-top:2px;">Standard FDM Industrial Dimensional Tolerances: ±0.20 mm</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-weight:700;color:#111827;margin-bottom:28px;">For MADE N MORE</div>
+          <div style="border-top:1px solid #9ca3af;padding-top:4px;display:inline-block;min-width:140px;">Authorized Signatory</div>
+        </div>
       </div>
     </div>
   `;
 
   showModal({
-    title: `Tax Invoice — ${escapeHtml(order.clientName)}`,
+    title: `Tax Invoice & Billing — ${escapeHtml(order.clientName)}`,
     body,
     confirmText: 'Close',
+    modalClass: 'modal-invoice-wide',
     onReady: () => {
       document.getElementById('btn-print-inv')?.addEventListener('click', () => {
         window.print();
       });
 
+      function recalculateInvoice() {
+        const sub = order.totalAmount;
+        _discount = parseFloat(document.getElementById('inv-discount-input')?.value) || 0;
+        _delivery = parseFloat(document.getElementById('inv-delivery-input')?.value) || 0;
+        const taxable = Math.max(0, sub - _discount);
+
+        const cgstRow = document.getElementById('inv-tax-row-cgst');
+        const sgstRow = document.getElementById('inv-tax-row-sgst');
+        const igstRow = document.getElementById('inv-tax-row-igst');
+        const discRow = document.getElementById('inv-row-discount');
+        const delRow = document.getElementById('inv-row-delivery');
+        const grandEl = document.getElementById('inv-grand-total');
+        const upiAmtEl = document.getElementById('inv-upi-amount');
+        const upiQrImg = document.getElementById('inv-upi-qr');
+
+        if (_discount > 0) {
+          discRow.style.display = '';
+          document.getElementById('inv-discount-val').textContent = `-₹${_discount.toFixed(2)}`;
+        } else {
+          discRow.style.display = 'none';
+        }
+
+        if (_delivery > 0) {
+          delRow.style.display = '';
+          document.getElementById('inv-delivery-val').textContent = `+₹${_delivery.toFixed(2)}`;
+        } else {
+          delRow.style.display = 'none';
+        }
+
+        let taxAmt = 0;
+        if (_taxMode === 'intra') {
+          cgstRow.style.display = '';
+          sgstRow.style.display = '';
+          igstRow.style.display = 'none';
+          document.getElementById('inv-cgst').textContent = formatCurrency(taxable * 0.09);
+          document.getElementById('inv-sgst').textContent = formatCurrency(taxable * 0.09);
+          taxAmt = taxable * 0.18;
+        } else if (_taxMode === 'inter') {
+          cgstRow.style.display = 'none';
+          sgstRow.style.display = 'none';
+          igstRow.style.display = '';
+          document.getElementById('inv-igst').textContent = formatCurrency(taxable * 0.18);
+          taxAmt = taxable * 0.18;
+        } else {
+          cgstRow.style.display = 'none';
+          sgstRow.style.display = 'none';
+          igstRow.style.display = 'none';
+          taxAmt = 0;
+        }
+
+        const totalPayable = (taxable + taxAmt + _delivery).toFixed(2);
+        grandEl.textContent = `₹${totalPayable}`;
+        if (upiAmtEl) upiAmtEl.textContent = `₹${totalPayable}`;
+
+        if (upiQrImg) {
+          const newUpiUrl = `upi://pay?pa=${encodeURIComponent(upiVpa)}&pn=${encodeURIComponent('Made N More 3D Printing Labs')}&am=${totalPayable}&cu=INR&tn=${encodeURIComponent(`Invoice ${invoiceNum}`)}`;
+          upiQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(newUpiUrl)}`;
+        }
+      }
+
       document.querySelectorAll('input[name="inv-tax-mode"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
-          const mode = e.target.value;
-          const sub = order.totalAmount;
-          const cgstRow = document.getElementById('inv-tax-row-cgst');
-          const sgstRow = document.getElementById('inv-tax-row-sgst');
-          const igstRow = document.getElementById('inv-tax-row-igst');
-          const grand = document.getElementById('inv-grand-total');
-
-          if (mode === 'intra') {
-            cgstRow.style.display = '';
-            sgstRow.style.display = '';
-            igstRow.style.display = 'none';
-            grand.innerText = formatCurrency(sub * 1.18);
-          } else if (mode === 'inter') {
-            cgstRow.style.display = 'none';
-            sgstRow.style.display = 'none';
-            igstRow.style.display = '';
-            grand.innerText = formatCurrency(sub * 1.18);
-          } else {
-            cgstRow.style.display = 'none';
-            sgstRow.style.display = 'none';
-            igstRow.style.display = 'none';
-            grand.innerText = formatCurrency(sub);
-          }
+          _taxMode = e.target.value;
+          recalculateInvoice();
         });
+      });
+
+      document.getElementById('inv-discount-input')?.addEventListener('input', recalculateInvoice);
+      document.getElementById('inv-delivery-input')?.addEventListener('input', recalculateInvoice);
+
+      document.getElementById('inv-client-gstin')?.addEventListener('input', (e) => {
+        const val = e.target.value.trim().toUpperCase();
+        const disp = document.getElementById('inv-disp-client-gstin');
+        if (disp) {
+          disp.textContent = val ? `GSTIN: ${val}` : 'Consumer / B2C Non-GST';
+        }
       });
     },
   });

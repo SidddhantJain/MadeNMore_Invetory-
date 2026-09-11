@@ -1,29 +1,39 @@
 /**
  * Made N More — Inventory Page
- * Filament inventory manager with Numakers 3D Spool visualizer, grid/table views, CRUD, filters, quick stepper
+ * Filament inventory manager with Numakers 3D Spool visualizer, 50x30mm thermal QR labels,
+ * and Workshop Consumables & Hardware Tracking (brass inserts, nozzles, IPA, resin)
  */
 
 import { getAll, create, update, remove, duplicate } from '../data/store.js';
 import { MATERIAL_TYPES, MATERIAL_BADGES, getSwatchClass } from '../data/seed.js';
-import { escapeHtml, debounce } from '../utils/helpers.js';
+import { escapeHtml, debounce, formatCurrency } from '../utils/helpers.js';
 import { ICONS } from '../utils/icons.js';
 import { showModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
 import { renderNumakersSpool, NUMAKERS_PHOTO_MAP } from '../utils/spoolRenderer.js';
 import { openTareCalculatorModal } from '../utils/tareCalculator.js';
 
+let _activeTab = 'filaments'; // filaments | consumables
 let _view = 'grid'; // grid | table
 let _filterMaterial = '';
 let _filterUsable = '';
+let _filterConsumableCat = '';
 let _searchQuery = '';
 let _sortField = 'name';
 let _sortDir = 'asc';
+
+const CONSUMABLE_CATEGORIES = [
+  'Fasteners & Inserts',
+  'Maintenance & Spare Parts',
+  'Chemicals & Post-Processing',
+  'Tools & Accessories',
+];
 
 export function renderInventory(container) {
   render(container);
 }
 
-function getFiltered() {
+function getFilteredFilaments() {
   let items = getAll('filaments');
 
   if (_searchQuery) {
@@ -43,7 +53,6 @@ function getFiltered() {
     items = items.filter(f => f.usable === false);
   }
 
-  // Sort
   items.sort((a, b) => {
     let valA = a[_sortField] ?? '';
     let valB = b[_sortField] ?? '';
@@ -57,29 +66,83 @@ function getFiltered() {
   return items;
 }
 
+function getFilteredConsumables() {
+  let items = getAll('consumables');
+
+  if (_searchQuery) {
+    const q = _searchQuery.toLowerCase();
+    items = items.filter(c =>
+      c.name?.toLowerCase().includes(q) ||
+      c.category?.toLowerCase().includes(q) ||
+      c.specs?.toLowerCase().includes(q) ||
+      c.location?.toLowerCase().includes(q)
+    );
+  }
+  if (_filterConsumableCat) {
+    items = items.filter(c => c.category === _filterConsumableCat);
+  }
+
+  return items;
+}
+
 function render(container) {
-  const items = getFiltered();
-  const totalSpools = items.reduce((s, f) => s + (f.spools || 0), 0);
+  const filaments = getFilteredFilaments();
+  const totalSpools = filaments.reduce((s, f) => s + (f.spools || 0), 0);
+  const consumables = getFilteredConsumables();
+  const lowStockConsumables = consumables.filter(c => (c.stock || 0) <= (c.minStock || 0));
 
   container.innerHTML = `
     <div class="page-header animate-in">
       <div class="page-header-left">
-        <h1>Filament Inventory</h1>
-        <p class="text-secondary">${items.length} materials • ${totalSpools} spools in stock • Official Numakers 3D Spool Showcase</p>
+        <h1>Workshop Inventory</h1>
+        <p class="text-secondary">Raw filament library, 50x30mm thermal rack labels, and shop consumables tracking</p>
       </div>
       <div class="page-header-actions">
-        <button class="btn btn-secondary" id="btn-scale-tare">
-          <span style="font-size:1.05rem;">⚖️</span>
-          Digital Scale Tare
-        </button>
-        <button class="btn btn-primary" id="btn-add-filament">
-          <span class="nav-icon">${ICONS.plus}</span>
-          Add Filament
-        </button>
+        ${_activeTab === 'filaments' ? `
+          <button class="btn btn-secondary" id="btn-scale-tare">
+            <span style="font-size:1.05rem;">⚖️</span>
+            Digital Scale Tare
+          </button>
+          <button class="btn btn-primary" id="btn-add-filament">
+            <span class="nav-icon">${ICONS.plus}</span>
+            Add Filament
+          </button>
+        ` : `
+          <button class="btn btn-primary" id="btn-add-consumable">
+            <span class="nav-icon">${ICONS.plus}</span>
+            Add Hardware / Consumable
+          </button>
+        `}
       </div>
     </div>
 
-    <!-- Toolbar -->
+    <!-- Sub-tab Switcher -->
+    <div class="filter-pills animate-in animate-delay-1" style="margin-bottom: var(--space-md);">
+      <button class="filter-pill ${_activeTab === 'filaments' ? 'active' : ''}" data-tab="filaments">
+        🧵 Filament Spools (${filaments.length})
+      </button>
+      <button class="filter-pill ${_activeTab === 'consumables' ? 'active' : ''}" data-tab="consumables">
+        🔩 Workshop Consumables & Hardware (${consumables.length})
+        ${lowStockConsumables.length > 0 ? `<span class="badge badge-danger" style="margin-left:6px;font-size:0.7rem;">${lowStockConsumables.length} low</span>` : ''}
+      </button>
+    </div>
+
+    ${_activeTab === 'filaments' ? renderFilamentToolbar(filaments, totalSpools) : renderConsumableToolbar(consumables)}
+
+    <!-- Content -->
+    <div id="inv-content" class="animate-in animate-delay-2">
+      ${_activeTab === 'filaments' 
+        ? (_view === 'grid' ? renderFilamentGrid(filaments) : renderFilamentTable(filaments))
+        : renderConsumablesView(consumables, lowStockConsumables)
+      }
+    </div>
+  `;
+
+  bindEvents(container);
+}
+
+function renderFilamentToolbar(items, totalSpools) {
+  return `
     <div class="toolbar animate-in animate-delay-1">
       <div class="toolbar-left">
         <div class="search-bar">
@@ -107,14 +170,27 @@ function render(container) {
         </div>
       </div>
     </div>
+  `;
+}
 
-    <!-- Content -->
-    <div id="inv-content" class="animate-in animate-delay-2">
-      ${_view === 'grid' ? renderGrid(items) : renderTable(items)}
+function renderConsumableToolbar(items) {
+  return `
+    <div class="toolbar animate-in animate-delay-1">
+      <div class="toolbar-left">
+        <div class="search-bar">
+          <span class="search-icon">${ICONS.search}</span>
+          <input type="text" id="inv-search" placeholder="Search brass inserts, nozzles, IPA, resin, locations..." value="${escapeHtml(_searchQuery)}"/>
+        </div>
+        <select class="filter-select" id="inv-filter-consumable-cat">
+          <option value="">All Categories</option>
+          ${CONSUMABLE_CATEGORIES.map(c => `<option value="${c}" ${_filterConsumableCat === c ? 'selected' : ''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="toolbar-right">
+        <span class="text-secondary" style="font-size:0.85rem;">${items.length} consumables tracked</span>
+      </div>
     </div>
   `;
-
-  bindEvents(container);
 }
 
 function getMaterialBadge(material) {
@@ -122,7 +198,7 @@ function getMaterialBadge(material) {
   return `<span class="badge ${cls}">${escapeHtml(material)}</span>`;
 }
 
-function renderGrid(items) {
+function renderFilamentGrid(items) {
   if (items.length === 0) {
     return `<div class="empty-state"><div class="empty-state-icon">${ICONS.spool}</div><p>No filaments found. Try adjusting your filters or add a new filament.</p></div>`;
   }
@@ -135,6 +211,7 @@ function renderGrid(items) {
           <!-- Numakers Spool Showcase Hero -->
           <div class="filament-spool-hero">
             <div class="filament-card-actions" style="position:absolute;top:10px;right:10px;display:flex;gap:4px;z-index:10;">
+              <button class="btn-icon btn-sm" data-action="thermal-label" data-id="${f.id}" title="Print 50x30mm Thermal QR Label">🏷️</button>
               <button class="btn-icon btn-sm" data-action="tare" data-id="${f.id}" title="Weigh & Tare Spool">⚖️</button>
               <button class="btn-icon btn-sm" data-action="edit" data-id="${f.id}" title="Edit filament">${ICONS.edit}</button>
               <button class="btn-icon btn-sm" data-action="duplicate" data-id="${f.id}" title="Duplicate">${ICONS.copy}</button>
@@ -169,7 +246,7 @@ function renderGrid(items) {
   `;
 }
 
-function renderTable(items) {
+function renderFilamentTable(items) {
   if (items.length === 0) {
     return `<div class="empty-state"><div class="empty-state-icon">${ICONS.spool}</div><p>No filaments found.</p></div>`;
   }
@@ -185,7 +262,7 @@ function renderTable(items) {
             <th data-sort="spools" class="${_sortField === 'spools' ? 'sorted' : ''}">Spools <span class="sort-icon">↕</span></th>
             <th>Status</th>
             <th>Brand</th>
-            <th style="width:100px">Actions</th>
+            <th style="width:130px">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -215,6 +292,7 @@ function renderTable(items) {
               <td style="color:var(--text-secondary)">${escapeHtml(f.brand || 'Numakers')}</td>
               <td>
                 <div class="row-actions">
+                  <button class="btn-icon" data-action="thermal-label" data-id="${f.id}" title="50x30mm QR Label">🏷️</button>
                   <button class="btn-icon" data-action="tare" data-id="${f.id}" title="Weigh & Tare Spool">⚖️</button>
                   <button class="btn-icon" data-action="edit" data-id="${f.id}" title="Edit">${ICONS.edit}</button>
                   <button class="btn-icon" data-action="duplicate" data-id="${f.id}" title="Duplicate">${ICONS.copy}</button>
@@ -229,9 +307,102 @@ function renderTable(items) {
   `;
 }
 
+function renderConsumablesView(consumables, lowStockItems) {
+  if (consumables.length === 0) {
+    return `
+      <div class="empty-state">
+        <div class="empty-state-icon">🔩</div>
+        <p>No workshop consumables found. Add brass inserts, nozzles, IPA, or resins to track shop stock.</p>
+      </div>
+    `;
+  }
+
+  return `
+    ${lowStockItems.length > 0 ? `
+      <div class="alert-banner alert-warning animate-in" style="margin-bottom:var(--space-md);background:rgba(239, 68, 68, 0.12);border:1px solid rgba(239, 68, 68, 0.3);border-radius:var(--radius-md);padding:12px 16px;display:flex;align-items:center;gap:12px;">
+        <span style="font-size:1.4rem;">⚠️</span>
+        <div>
+          <div style="font-weight:700;color:var(--danger);">Low Stock Warning (${lowStockItems.length} items require replenishment)</div>
+          <div style="font-size:0.82rem;color:var(--text-secondary);">
+            The following consumables are below minimum safety buffer: 
+            <strong>${lowStockItems.map(c => `${c.name} (${c.stock} ${c.unit})`).join(', ')}</strong>
+          </div>
+        </div>
+      </div>
+    ` : ''}
+
+    <div class="consumables-grid">
+      ${consumables.map(c => {
+        const isLow = (c.stock || 0) <= (c.minStock || 0);
+        return `
+          <div class="consumable-card ${isLow ? 'low-stock' : ''}" data-id="${c.id}">
+            <div>
+              <div class="consumable-top">
+                <span class="consumable-cat">${escapeHtml(c.category || 'General')}</span>
+                <div style="display:flex;gap:4px;">
+                  <button class="btn-icon btn-sm" data-action="edit-consumable" data-id="${c.id}" title="Edit">${ICONS.edit}</button>
+                  <button class="btn-icon btn-sm" data-action="delete-consumable" data-id="${c.id}" title="Delete" style="color:var(--danger);">${ICONS.trash}</button>
+                </div>
+              </div>
+              <div class="consumable-name">${escapeHtml(c.name)}</div>
+              <div style="font-size:0.8rem;color:var(--text-secondary);margin:4px 0 8px;">${escapeHtml(c.specs || '')}</div>
+              
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+                <span class="badge" style="background:rgba(255,255,255,0.05);font-size:0.72rem;">📍 ${escapeHtml(c.location || 'Workshop')}</span>
+                ${c.supplier ? `<span class="badge" style="background:rgba(255,255,255,0.05);font-size:0.72rem;">🏢 ${escapeHtml(c.supplier)}</span>` : ''}
+                <span class="badge" style="background:rgba(255,255,255,0.05);font-size:0.72rem;">💰 ${formatCurrency(c.costPerUnit || 0)}/${c.unit || 'pc'}</span>
+              </div>
+            </div>
+
+            <div>
+              <div class="consumable-stock-row">
+                <div>
+                  <div style="font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;">Stock Level</div>
+                  <div style="font-size:1.15rem;font-weight:800;color:${isLow ? 'var(--danger)' : 'var(--text-primary)'};">
+                    ${c.stock || 0} <span style="font-size:0.8rem;font-weight:500;color:var(--text-secondary);">${c.unit || 'pcs'}</span>
+                  </div>
+                  <div style="font-size:0.72rem;color:var(--text-muted);">Min: ${c.minStock || 0} ${c.unit || 'pcs'}</div>
+                </div>
+
+                <div class="stock-stepper">
+                  <button class="btn-stepper" data-action="step-consumable" data-delta="-10" data-id="${c.id}" title="-10">-10</button>
+                  <button class="btn-stepper" data-action="step-consumable" data-delta="-1" data-id="${c.id}" title="-1">-1</button>
+                  <button class="btn-stepper" data-action="step-consumable" data-delta="1" data-id="${c.id}" title="+1">+1</button>
+                  <button class="btn-stepper" data-action="step-consumable" data-delta="10" data-id="${c.id}" title="+10">+10</button>
+                </div>
+              </div>
+
+              ${isLow ? `
+                <div style="font-size:0.72rem;color:var(--danger);font-weight:700;display:flex;align-items:center;gap:4px;">
+                  ⚠️ Replenish soon (Below safety stock)
+                </div>
+              ` : `
+                <div style="font-size:0.72rem;color:#4ade80;display:flex;align-items:center;gap:4px;">
+                  ✓ Optimal inventory buffer
+                </div>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
 function bindEvents(container) {
+  // Tab switcher
+  container.querySelectorAll('.filter-pills [data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _activeTab = btn.dataset.tab;
+      render(container);
+    });
+  });
+
   // Add filament
   container.querySelector('#btn-add-filament')?.addEventListener('click', () => openFilamentModal());
+
+  // Add consumable
+  container.querySelector('#btn-add-consumable')?.addEventListener('click', () => openConsumableModal());
 
   // Digital Scale Tare
   container.querySelector('#btn-scale-tare')?.addEventListener('click', () => {
@@ -252,6 +423,11 @@ function bindEvents(container) {
 
   container.querySelector('#inv-filter-usable')?.addEventListener('change', (e) => {
     _filterUsable = e.target.value;
+    render(container);
+  });
+
+  container.querySelector('#inv-filter-consumable-cat')?.addEventListener('change', (e) => {
+    _filterConsumableCat = e.target.value;
     render(container);
   });
 
@@ -277,17 +453,23 @@ function bindEvents(container) {
     });
   });
 
-  // Card/Row actions (edit, delete, duplicate, inc/dec spool stepper, tare)
+  // Card/Row actions (edit, delete, duplicate, inc/dec spool stepper, tare, thermal label)
   container.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const action = btn.dataset.action;
       const id = btn.dataset.id;
-      if (action === 'tare') {
+      
+      if (action === 'thermal-label') {
+        const filament = getAll('filaments').find(f => f.id === id);
+        if (filament) openThermalLabelModal(filament);
+      } else if (action === 'tare') {
         openTareCalculatorModal(id, () => render(container));
-      } else if (action === 'edit') openFilamentModal(id);
-      else if (action === 'delete') confirmDelete(id, container);
-      else if (action === 'duplicate') {
+      } else if (action === 'edit') {
+        openFilamentModal(id);
+      } else if (action === 'delete') {
+        confirmDelete(id, container);
+      } else if (action === 'duplicate') {
         duplicate('filaments', id);
         showToast('Filament duplicated!', 'success');
         render(container);
@@ -301,6 +483,18 @@ function bindEvents(container) {
         const item = getAll('filaments').find(f => f.id === id);
         if (item && item.spools > 0) {
           update('filaments', id, { spools: item.spools - 1 });
+          render(container);
+        }
+      } else if (action === 'edit-consumable') {
+        openConsumableModal(id);
+      } else if (action === 'delete-consumable') {
+        confirmDeleteConsumable(id, container);
+      } else if (action === 'step-consumable') {
+        const delta = parseFloat(btn.dataset.delta) || 0;
+        const c = getAll('consumables').find(item => item.id === id);
+        if (c) {
+          const newStock = Math.max(0, (c.stock || 0) + delta);
+          update('consumables', id, { stock: newStock });
           render(container);
         }
       }
@@ -362,6 +556,86 @@ function confirmDelete(id, container) {
   });
 }
 
+function confirmDeleteConsumable(id, container) {
+  const c = getAll('consumables').find(item => item.id === id);
+  if (!c) return;
+
+  showModal({
+    title: 'Delete Consumable',
+    body: `<p>Are you sure you want to delete <strong>${escapeHtml(c.name)}</strong>?</p>`,
+    confirmText: 'Delete',
+    confirmClass: 'btn-danger',
+    onConfirm: () => {
+      remove('consumables', id);
+      showToast(`Deleted "${c.name}"`, 'warning');
+      closeModal();
+      render(container);
+    },
+  });
+}
+
+/** 50x30mm Thermal Spool QR Label Modal */
+export function openThermalLabelModal(f) {
+  const tare = f.tareWeight || 210;
+  const qrData = `MNM:SPOOL:${f.id}:${encodeURIComponent(f.name)}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=0&data=${encodeURIComponent(qrData)}`;
+
+  const body = `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:18px;padding:10px 0;">
+      <div style="font-size:0.85rem;color:var(--text-secondary);text-align:center;">
+        Industrial 50x30mm Thermal Sticker Roll Preview (Direct Thermal / QR Scanner Ready)
+      </div>
+
+      <!-- 50x30mm Physical Aspect Ratio Container -->
+      <div class="thermal-label" id="printable-thermal-label">
+        <div class="thermal-label-header">
+          <span class="thermal-brand">MADE N MORE • WORKSHOP</span>
+          <span class="thermal-tare-badge">TARE: ${tare}g</span>
+        </div>
+
+        <div class="thermal-label-body">
+          <img class="thermal-qr" src="${qrUrl}" alt="QR" />
+          <div class="thermal-details">
+            <div class="thermal-material">${escapeHtml(f.material || 'PLA+')} • 1.75mm</div>
+            <div class="thermal-color" style="display:flex;align-items:center;gap:4px;">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${f.hex || '#000'};border:0.5px solid #000;"></span>
+              <span>${escapeHtml(f.name)}</span>
+            </div>
+            <div style="font-size:6.2pt;color:#222;">Brand: ${escapeHtml(f.brand || 'Numakers')} • ID: ${f.id}</div>
+            <div style="font-weight:800;font-size:7pt;margin-top:0.5mm;">NET: 1000g / 1.0 kg</div>
+          </div>
+        </div>
+
+        <div class="thermal-footer">
+          <span>BATCH: 2026-NMK</span>
+          <span>RACK SLOT: SHELF-A</span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;width:100%;justify-content:center;">
+        <button class="btn btn-primary" id="btn-trigger-thermal-print" style="padding:10px 24px;">
+          🖨️ Print 50x30mm Thermal Sticker
+        </button>
+      </div>
+    </div>
+  `;
+
+  showModal({
+    title: `Thermal Spool QR Label — ${f.name}`,
+    body,
+    confirmText: 'Done',
+    onReady: () => {
+      document.getElementById('btn-trigger-thermal-print')?.addEventListener('click', () => {
+        document.body.classList.add('printing-thermal');
+        window.print();
+        setTimeout(() => {
+          document.body.classList.remove('printing-thermal');
+        }, 800);
+      });
+    },
+  });
+}
+
 function openFilamentModal(editId = null) {
   const existing = editId ? getAll('filaments').find(f => f.id === editId) : null;
   const isEdit = !!existing;
@@ -396,7 +670,6 @@ function openFilamentModal(editId = null) {
       </div>
     </div>
 
-    <!-- Numakers Photo Selector -->
     <div class="form-group" style="background:var(--bg-card);padding:12px;border-radius:var(--radius-md);border:1px solid var(--border);">
       <label class="form-label" style="font-weight:600;">Numakers Official Spool Photo</label>
       <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:8px;">
@@ -475,7 +748,6 @@ function openFilamentModal(editId = null) {
         });
       }
 
-      // Presets
       document.querySelectorAll('.btn-preset-photo').forEach(btn => {
         btn.addEventListener('click', () => {
           const url = btn.dataset.url;
@@ -493,6 +765,101 @@ function openFilamentModal(editId = null) {
           label.textContent = toggle.classList.contains('active') ? 'Yes' : 'No';
         });
       }
+    },
+  });
+}
+
+function openConsumableModal(editId = null) {
+  const existing = editId ? getAll('consumables').find(c => c.id === editId) : null;
+  const isEdit = !!existing;
+
+  const body = `
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Item Name *</label>
+        <input class="form-input" id="con-name" value="${escapeHtml(existing?.name || '')}" placeholder="e.g. M3 Brass Threaded Heat-Set Inserts" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Category *</label>
+        <select class="form-select" id="con-category">
+          ${CONSUMABLE_CATEGORIES.map(cat => `<option value="${cat}" ${existing?.category === cat ? 'selected' : ''}>${cat}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Technical Specifications</label>
+      <input class="form-input" id="con-specs" value="${escapeHtml(existing?.specs || '')}" placeholder="e.g. M3 x 4.0mm (OD 4.6mm), Knurled Brass" />
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Stock Quantity</label>
+        <input class="form-input" type="number" id="con-stock" min="0" step="any" value="${existing?.stock ?? 100}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Unit of Measure</label>
+        <input class="form-input" id="con-unit" value="${escapeHtml(existing?.unit || 'pcs')}" placeholder="e.g. pcs, g, L, tubes" />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Min Stock Threshold (Alert Level)</label>
+        <input class="form-input" type="number" id="con-min-stock" min="0" step="any" value="${existing?.minStock ?? 20}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cost per Unit (₹)</label>
+        <input class="form-input" type="number" id="con-cost" min="0" step="any" value="${existing?.costPerUnit ?? 2.5}" />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Physical Storage Location</label>
+        <input class="form-input" id="con-location" value="${escapeHtml(existing?.location || 'Bin A1 - Hardware Drawer')}" placeholder="e.g. Bin A1, Toolbox Shelf 2" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Supplier / Source</label>
+        <input class="form-input" id="con-supplier" value="${escapeHtml(existing?.supplier || 'Robu.in')}" placeholder="e.g. Robu.in, Amazon" />
+      </div>
+    </div>
+  `;
+
+  showModal({
+    title: isEdit ? 'Edit Hardware / Consumable' : 'Add New Hardware / Consumable',
+    body,
+    confirmText: isEdit ? 'Save Changes' : 'Add Item',
+    onConfirm: () => {
+      const name = document.getElementById('con-name').value.trim();
+      if (!name) {
+        showToast('Name is required', 'error');
+        return;
+      }
+
+      const data = {
+        name,
+        category: document.getElementById('con-category').value,
+        specs: document.getElementById('con-specs').value.trim(),
+        stock: parseFloat(document.getElementById('con-stock').value) || 0,
+        unit: document.getElementById('con-unit').value.trim() || 'pcs',
+        minStock: parseFloat(document.getElementById('con-min-stock').value) || 0,
+        costPerUnit: parseFloat(document.getElementById('con-cost').value) || 0,
+        location: document.getElementById('con-location').value.trim(),
+        supplier: document.getElementById('con-supplier').value.trim(),
+      };
+
+      if (isEdit) {
+        update('consumables', editId, data);
+        showToast('Consumable updated!', 'success');
+      } else {
+        create('consumables', data);
+        showToast('Consumable added to inventory!', 'success');
+      }
+
+      closeModal();
+      const contentEl = document.getElementById('content');
+      if (contentEl) render(contentEl);
     },
   });
 }
