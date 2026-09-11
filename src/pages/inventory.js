@@ -4,7 +4,7 @@
  */
 
 import { getAll, create, update, remove, duplicate } from '../data/store.js';
-import { MATERIAL_TYPES, MATERIAL_BADGES } from '../data/seed.js';
+import { MATERIAL_TYPES, MATERIAL_BADGES, getSwatchClass } from '../data/seed.js';
 import { escapeHtml, debounce } from '../utils/helpers.js';
 import { ICONS } from '../utils/icons.js';
 import { showModal, closeModal } from '../components/modal.js';
@@ -184,12 +184,13 @@ function renderTable(items) {
         </thead>
         <tbody>
           ${items.map((f, i) => {
+            const swatchClass = getSwatchClass(f.name, f.material);
             return `
             <tr data-id="${f.id}">
               <td style="color:var(--text-muted)">${i + 1}</td>
               <td>
                 <div class="flex items-center gap-md">
-                  ${renderNumakersSpool(f, 'thumb')}
+                  <div class="color-swatch ${swatchClass}" style="background-color: ${f.hex || '#888'};"></div>
                   <div>
                     <span class="inline-editable" style="font-weight:600;color:var(--text-primary);" data-field="name" data-id="${f.id}">${escapeHtml(f.name)}</span>
                     <div style="font-size:0.75rem;color:var(--text-muted);">${f.hex || ''}</div>

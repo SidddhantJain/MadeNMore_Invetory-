@@ -2225,3 +2225,185 @@ h4 { font-size: 1rem; }
   font-weight: 700;
   color: var(--text-primary);
 }
+
+/* ── 32. 3D PRINTER FARM & FLEET INTERFACE ─────────────────── */
+.printer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.printer-card {
+  background: rgba(18, 21, 38, 0.75);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: all var(--transition);
+  backdrop-filter: blur(12px);
+}
+
+.printer-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-hover);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+}
+
+.printer-card.status-printing {
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.printer-card.status-idle {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.printer-card.status-maintenance {
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.printer-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.printer-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.printer-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.printer-model {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.status-badge-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge-printing {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.status-badge-idle {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.status-badge-heating {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.status-badge-maintenance {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.status-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  animation: live-dot-pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes live-dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.4; }
+}
+
+/* Telemetry Gauges */
+.telemetry-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.temp-gauge {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.temp-label {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.temp-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.temp-target {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* Active Job Box */
+.printer-job-box {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.printer-job-title {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.printer-meta-specs {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  padding: 6px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.printer-actions-footer {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}

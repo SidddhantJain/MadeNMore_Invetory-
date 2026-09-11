@@ -8,8 +8,9 @@ import { initStore, undo, search } from './data/store.js';
 import { seedDatabase } from './data/seed.js';
 import { renderDashboard } from './pages/dashboard.js';
 import { renderInventory } from './pages/inventory.js';
-import { renderTransactions } from './pages/transactions.js';
 import { renderOrders } from './pages/orders.js';
+import { renderPrinters } from './pages/printers.js';
+import { renderTransactions } from './pages/transactions.js';
 import { renderCalculator } from './pages/calculator.js';
 import { renderSettings } from './pages/settings.js';
 import { showToast } from './components/toast.js';
@@ -20,8 +21,9 @@ import { debounce, escapeHtml } from './utils/helpers.js';
 const ROUTES = [
   { hash: '#/',              label: 'Dashboard',    icon: 'dashboard',    render: renderDashboard,    section: 'main' },
   { hash: '#/inventory',     label: 'Inventory',    icon: 'inventory',    render: renderInventory,    section: 'main' },
-  { hash: '#/transactions',  label: 'Transactions', icon: 'transactions', render: renderTransactions, section: 'main' },
   { hash: '#/orders',        label: 'Orders',       icon: 'order',        render: renderOrders,       section: 'main' },
+  { hash: '#/printers',      label: 'Printers',     icon: 'printer',      render: renderPrinters,     section: 'main' },
+  { hash: '#/transactions',  label: 'Transactions', icon: 'transactions', render: renderTransactions, section: 'main' },
   { hash: '#/calculator',    label: 'Calculator',   icon: 'calculator',   render: renderCalculator,   section: 'tools' },
   { hash: '#/settings',      label: 'Settings',     icon: 'settings',     render: renderSettings,     section: 'system' },
 ];

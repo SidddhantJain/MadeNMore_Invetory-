@@ -246,6 +246,94 @@ const ORDER_SEED = [
   },
 ];
 
+/** Sample 3D printer fleet seed */
+export const PRINTER_SEED = [
+  {
+    name: 'Snapmaker U1 #01',
+    model: 'Snapmaker U1 Multi-Material Dual',
+    buildVolume: '250 x 250 x 250 mm',
+    nozzleDiameter: '0.4 mm Hardened Steel',
+    status: 'printing',
+    targetNozzleTemp: 250,
+    currentNozzleTemp: 246,
+    targetBedTemp: 80,
+    currentBedTemp: 80,
+    currentJob: 'RoboTech — Motor Arm Bracket',
+    jobProgress: 68,
+    elapsedMinutes: 135,
+    totalMinutes: 200,
+    loadedSpool: 'Pitch Black (PETG-HS)',
+    loadedSpoolHex: '#0a0a0a',
+    runningHours: 248,
+    maintenanceDueHours: 300,
+    location: 'Workbench A1 — Enclosed',
+    notes: 'Dual-material production unit with high-temperature enclosure.',
+  },
+  {
+    name: 'Voron 2.4 CoreXY #02',
+    model: 'Voron 2.4 High-Speed Enclosed',
+    buildVolume: '350 x 350 x 350 mm',
+    nozzleDiameter: '0.4 mm CHT High-Flow',
+    status: 'printing',
+    targetNozzleTemp: 240,
+    currentNozzleTemp: 240,
+    targetBedTemp: 95,
+    currentBedTemp: 95,
+    currentJob: 'Product Designer — Main Housing',
+    jobProgress: 42,
+    elapsedMinutes: 180,
+    totalMinutes: 430,
+    loadedSpool: 'Black (Orange) (ABS)',
+    loadedSpoolHex: '#1a1a1a',
+    runningHours: 412,
+    maintenanceDueHours: 500,
+    location: 'Workbench A2 — Exhaust Bay',
+    notes: 'Dedicated ABS/ASA high-speed engineering printer with active chamber heating.',
+  },
+  {
+    name: 'Bambu Lab P1S #03',
+    model: 'Bambu Lab P1S + AMS Hub',
+    buildVolume: '256 x 256 x 256 mm',
+    nozzleDiameter: '0.4 mm Stainless',
+    status: 'idle',
+    targetNozzleTemp: 0,
+    currentNozzleTemp: 28,
+    targetBedTemp: 0,
+    currentBedTemp: 29,
+    currentJob: null,
+    jobProgress: 0,
+    elapsedMinutes: 0,
+    totalMinutes: 0,
+    loadedSpool: 'Cool White (PLA+)',
+    loadedSpoolHex: '#e0e0e0',
+    runningHours: 185,
+    maintenanceDueHours: 300,
+    location: 'Workbench B1',
+    notes: 'Ready for next queue job. AMS slot loaded with 4x PLA colors.',
+  },
+  {
+    name: 'Ender 3 V3 Plus #04',
+    model: 'Creality Ender 3 V3 Plus',
+    buildVolume: '300 x 300 x 330 mm',
+    nozzleDiameter: '0.6 mm High-Flow Brass',
+    status: 'maintenance',
+    targetNozzleTemp: 0,
+    currentNozzleTemp: 26,
+    targetBedTemp: 0,
+    currentBedTemp: 26,
+    currentJob: null,
+    jobProgress: 0,
+    elapsedMinutes: 0,
+    totalMinutes: 0,
+    loadedSpool: 'Military Khaki (PLA+)',
+    loadedSpoolHex: '#6b6b47',
+    runningHours: 530,
+    maintenanceDueHours: 500,
+    location: 'Service Station',
+    notes: 'Linear rail lubrication & replacement of 0.6mm brass nozzle.',
+  },
+];
+
 /** Seed the database with initial data */
 export function seedDatabase() {
   if (isSeeded()) return false;
@@ -263,6 +351,11 @@ export function seedDatabase() {
   // Seed orders
   ORDER_SEED.forEach(o => {
     create('orders', o);
+  });
+
+  // Seed printers
+  PRINTER_SEED.forEach(p => {
+    create('printers', p);
   });
 
   markSeeded();
