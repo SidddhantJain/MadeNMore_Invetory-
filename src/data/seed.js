@@ -267,7 +267,12 @@ export const PRINTER_SEED = [
     runningHours: 248,
     maintenanceDueHours: 300,
     location: 'Workbench A1 — Enclosed',
-    notes: 'Dual-material production unit with high-temperature enclosure.',
+    iotType: 'moonraker',
+    iotHost: '192.168.0.144',
+    iotPort: '80',
+    webcamUrl: 'http://192.168.0.144/server/files/camera/',
+    autoDeductSpool: true,
+    notes: 'Snapmaker U1 Klipper/Moonraker connected directly over LAN.',
   },
   {
     name: 'Voron 2.4 CoreXY #02',

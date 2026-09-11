@@ -1,6 +1,6 @@
 /**
  * Made N More — 3D Printer Fleet Farm Interface
- * Operator-centric control room for physical 3D printers, IoT telemetry, zero-touch spool deduction, and scrap logging
+ * Real physical machine telemetry over LAN (Moonraker / Snapmaker U1), zero-touch spool deduction, and camera feeds
  */
 
 import { getAll, create, update, remove, getById } from '../data/store.js';
@@ -11,6 +11,7 @@ import { showToast } from '../components/toast.js';
 import { PRINTER_SEED } from '../data/seed.js';
 import { openTareCalculatorModal } from '../utils/tareCalculator.js';
 import { readSlicerFile } from '../utils/slicerParser.js';
+import { fetchPrinterTelemetry, fetchLatestSnapshot, scanLocalSubnet } from '../services/moonrakerService.js';
 
 let _telemetryActive = false;
 let _telemetryTimer = null;
@@ -23,7 +24,21 @@ export function renderPrinters(container) {
     printers = getAll('printers');
   }
 
+  // Ensure Snapmaker U1 has the known LAN IP 192.168.0.144
+  const snapmaker = printers.find(p => p.name?.includes('Snapmaker') || p.model?.includes('Snapmaker'));
+  if (snapmaker && (!snapmaker.iotHost || snapmaker.iotHost === '192.168.1.120')) {
+    update('printers', snapmaker.id, {
+      iotHost: '192.168.0.144',
+      iotPort: '80',
+      iotType: 'moonraker',
+      webcamUrl: 'http://192.168.0.144/server/files/camera/',
+    });
+  }
+
   render(container);
+
+  // Poll real physical printer immediately in background
+  syncPhysicalPrinters(container, false);
 }
 
 function render(container) {
@@ -37,9 +52,13 @@ function render(container) {
     <div class="page-header animate-in">
       <div class="page-header-left">
         <h1>3D Printer Fleet Hub</h1>
-        <p class="text-secondary">Direct physical machine telemetry, automated spool deduction & scrap loss logging</p>
+        <p class="text-secondary">Direct physical machine telemetry, camera snapshots, and automated inventory sync</p>
       </div>
       <div class="page-header-actions">
+        <button class="btn btn-secondary" id="btn-sync-physical" title="Poll physical Snapmaker U1 over Wi-Fi now">
+          <span style="font-size:1.05rem;">🔄</span>
+          Sync Physical Farm
+        </button>
         <button class="btn btn-secondary" id="btn-scale-tare-printers" title="Weigh physical spool on digital scale">
           <span style="font-size:1.05rem;">⚖️</span>
           Tare Spool
@@ -108,13 +127,15 @@ function renderPrinterCard(printer) {
   const isMaintDue = (printer.runningHours || 0) >= maintLimit;
 
   // IoT Connector details
-  const iotType = printer.iotType || (printer.model.includes('Bambu') ? 'bambu' : printer.model.includes('Voron') ? 'moonraker' : 'octoprint');
+  const iotType = printer.iotType || (printer.model.includes('Bambu') ? 'bambu' : 'moonraker');
   const iotLabels = {
     moonraker: 'Moonraker (Klipper)',
     bambu: 'Bambu Lab MQTT',
     octoprint: 'OctoPrint REST',
     snapmaker: 'Snapmaker Serial',
   };
+
+  const hasLan = !!printer.iotHost;
 
   return `
     <div class="card printer-card status-${printer.status || 'idle'}" data-printer-id="${printer.id}">
@@ -129,14 +150,29 @@ function renderPrinterCard(printer) {
             <span class="status-live-dot ${_telemetryActive && printer.status === 'printing' ? 'telemetry-pulse' : ''}" style="background:${status.color};"></span>
             ${status.label}
           </span>
-          <button class="printer-iot-badge" data-action="iot-config" data-id="${printer.id}" title="Configure API & IoT settings">
+          <button class="printer-iot-badge" data-action="iot-config" data-id="${printer.id}" title="Configure IP & IoT settings">
             <span>📡 ${iotLabels[iotType] || 'IoT Hub'}</span>
             <span style="font-size:0.65rem;opacity:0.7;">⚙️</span>
           </button>
         </div>
       </div>
 
-      <!-- Thermal Telemetry -->
+      <!-- Physical LAN Bridge Status Bar -->
+      ${hasLan ? `
+        <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.2);border-radius:var(--radius-sm);padding:5px 9px;margin-bottom:10px;font-size:0.74rem;">
+          <span style="display:flex;align-items:center;gap:6px;color:var(--success);font-weight:600;">
+            <span class="status-live-dot telemetry-pulse" style="background:#22c55e;"></span>
+            LAN: ${escapeHtml(printer.iotHost)}
+          </span>
+          <div style="display:flex;gap:4px;align-items:center;">
+            <button class="btn-icon btn-sm" data-action="fetch-camera" data-id="${printer.id}" title="View Camera Snapshot" style="font-size:0.8rem;padding:2px 4px;">📷</button>
+            <button class="btn-icon btn-sm" data-action="poll-physical" data-id="${printer.id}" title="Refresh Live Data" style="font-size:0.8rem;padding:2px 4px;">🔄</button>
+            <a href="http://${escapeHtml(printer.iotHost)}/" target="_blank" title="Open Fluidd Web UI" style="color:var(--text-secondary);font-size:0.8rem;padding:2px 4px;text-decoration:none;">🌐</a>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Thermal Telemetry (Extruder, Bed & Optional Chamber) -->
       <div class="telemetry-row">
         <div class="temp-gauge">
           <span class="temp-label">🔥 Extruder</span>
@@ -152,6 +188,14 @@ function renderPrinterCard(printer) {
             <span class="temp-target">/ ${printer.targetBedTemp || 0}°C</span>
           </div>
         </div>
+        ${printer.chamberTemp ? `
+          <div class="temp-gauge">
+            <span class="temp-label">📦 Chamber</span>
+            <div class="temp-value">
+              <span id="temp-chamber-${printer.id}">${printer.chamberTemp}</span>°C
+            </div>
+          </div>
+        ` : ''}
       </div>
 
       <!-- Active Job, Slicer Dropzone, or Idle State -->
@@ -252,6 +296,12 @@ function renderPrinterCard(printer) {
           </button>
         `}
 
+        ${hasLan ? `
+          <button class="btn-icon btn-sm" data-action="fetch-camera" data-id="${printer.id}" title="Camera Snapshot">
+            📷
+          </button>
+        ` : ''}
+
         <button class="btn-icon btn-sm" data-action="maintenance-log" data-id="${printer.id}" title="Maintenance Log">
           🛠️
         </button>
@@ -269,6 +319,11 @@ function renderPrinterCard(printer) {
 function bindEvents(container) {
   // Add Machine
   container.querySelector('#btn-add-printer')?.addEventListener('click', () => openPrinterModal(container));
+
+  // Sync Physical Farm
+  container.querySelector('#btn-sync-physical')?.addEventListener('click', () => {
+    syncPhysicalPrinters(container, true);
+  });
 
   // Scale Tare Shortcut
   container.querySelector('#btn-scale-tare-printers')?.addEventListener('click', () => {
@@ -325,10 +380,148 @@ function bindEvents(container) {
       else if (action === 'maintenance-log') openMaintenanceLogModal(id, container);
       else if (action === 'iot-config') openIoTConfigModal(id, container);
       else if (action === 'quick-tare-printer') quickTarePrinterSpool(id, container);
+      else if (action === 'fetch-camera') openCameraSnapshotModal(id, container);
+      else if (action === 'poll-physical') pollSinglePhysicalPrinter(id, container);
       else if (action === 'edit-printer') openPrinterModal(container, id);
       else if (action === 'delete-printer') confirmDeletePrinter(id, container);
     });
   });
+}
+
+// ─── Sync Physical LAN Printers ────────────────────────────────
+async function syncPhysicalPrinters(container, showFeedback = true) {
+  const printers = getAll('printers');
+  let syncCount = 0;
+
+  for (const printer of printers) {
+    if (printer.iotHost) {
+      const tel = await fetchPrinterTelemetry(printer.iotHost, printer.iotPort || 80);
+      if (tel.online) {
+        update('printers', printer.id, {
+          currentNozzleTemp: tel.currentNozzleTemp,
+          targetNozzleTemp: tel.targetNozzleTemp,
+          currentBedTemp: tel.currentBedTemp,
+          targetBedTemp: tel.targetBedTemp,
+          chamberTemp: tel.chamberTemp,
+          status: tel.status,
+          currentJob: tel.currentJob || printer.currentJob,
+          jobProgress: tel.jobProgress || printer.jobProgress,
+          elapsedMinutes: tel.elapsedMinutes || printer.elapsedMinutes,
+          totalMinutes: tel.totalMinutes || printer.totalMinutes,
+          isLiveOnline: true,
+        });
+        syncCount++;
+      }
+    }
+  }
+
+  if (syncCount > 0) {
+    if (showFeedback) showToast(`📡 Synced live data from physical printer (${syncCount} machines active)!`, 'success');
+    render(container);
+  } else if (showFeedback) {
+    showToast('⚠️ Could not reach physical printer on LAN. Check IP address or Wi-Fi.', 'warning');
+  }
+}
+
+async function pollSinglePhysicalPrinter(printerId, container) {
+  const printer = getById('printers', printerId);
+  if (!printer || !printer.iotHost) return;
+
+  showToast(`Polling ${printer.name} at ${printer.iotHost}...`, 'info');
+  const tel = await fetchPrinterTelemetry(printer.iotHost, printer.iotPort || 80);
+
+  if (tel.online) {
+    update('printers', printerId, {
+      currentNozzleTemp: tel.currentNozzleTemp,
+      targetNozzleTemp: tel.targetNozzleTemp,
+      currentBedTemp: tel.currentBedTemp,
+      targetBedTemp: tel.targetBedTemp,
+      chamberTemp: tel.chamberTemp,
+      status: tel.status,
+      currentJob: tel.currentJob || printer.currentJob,
+      jobProgress: tel.jobProgress || printer.jobProgress,
+      elapsedMinutes: tel.elapsedMinutes || printer.elapsedMinutes,
+      isLiveOnline: true,
+    });
+    showToast(`🟢 ${printer.name} Online: ${tel.currentNozzleTemp}°C / Bed ${tel.currentBedTemp}°C`, 'success');
+    render(container);
+  } else {
+    showToast(`⚠️ Could not reach ${printer.iotHost}. IP may have changed.`, 'error');
+  }
+}
+
+// ─── Camera Snapshot & Stream Modal ────────────────────────────
+async function openCameraSnapshotModal(printerId, container) {
+  const printer = getById('printers', printerId);
+  if (!printer || !printer.iotHost) {
+    showToast('No LAN IP configured for this printer', 'warning');
+    return;
+  }
+
+  showToast('Fetching latest camera snapshot from printer...', 'info');
+  const snapshot = await fetchLatestSnapshot(printer.iotHost, printer.iotPort || 80);
+
+  const streamUrl = `http://${printer.iotHost}/webcam/?action=stream`;
+
+  const body = `
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <strong>${escapeHtml(printer.name)} Camera System</strong>
+        <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:2px;">
+          IP: <strong>${escapeHtml(printer.iotHost)}</strong> • Moonraker Timelapse & Snapshots
+        </div>
+      </div>
+      <a href="http://${escapeHtml(printer.iotHost)}/" target="_blank" class="btn btn-ghost btn-sm" style="font-size:0.75rem;">
+        🌐 Open Fluidd
+      </a>
+    </div>
+
+    <!-- Snapshot Viewer Box -->
+    <div style="text-align:center;background:#000;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;margin-bottom:14px;min-height:240px;display:flex;align-items:center;justify-content:center;position:relative;">
+      ${snapshot ? `
+        <img src="${snapshot.url}" alt="Snapmaker Bed Snapshot" style="max-width:100%;max-height:380px;object-fit:contain;display:block;" id="camera-snapshot-img" />
+        <div style="position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,0.7);padding:4px 8px;border-radius:4px;font-size:0.72rem;color:#fff;">
+          Latest Photo: ${snapshot.filename} (${snapshot.modified})
+        </div>
+      ` : `
+        <div style="padding:40px 20px;color:var(--text-secondary);">
+          <div style="font-size:2rem;margin-bottom:8px;">📷</div>
+          <div>No timelapse snapshots found in printer memory.</div>
+          <div style="font-size:0.75rem;margin-top:4px;">Snapmaker captures photos automatically upon print layer changes.</div>
+        </div>
+      `}
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;">
+      <button class="btn btn-secondary btn-sm" id="btn-refresh-cam">
+        🔄 Refresh Latest Snapshot
+      </button>
+      <a href="${snapshot ? snapshot.url : '#'}" target="_blank" class="btn btn-ghost btn-sm ${!snapshot ? 'disabled' : ''}">
+        🔍 Full Resolution Photo
+      </a>
+    </div>
+  `;
+
+  showModal({
+    title: 'Snapmaker Camera Feed & Snapshots',
+    body,
+    confirmText: 'Done',
+    onConfirm: () => {
+      closeModal();
+    },
+  });
+
+  setTimeout(() => {
+    document.getElementById('btn-refresh-cam')?.addEventListener('click', async () => {
+      showToast('Refreshing...', 'info');
+      const updated = await fetchLatestSnapshot(printer.iotHost, printer.iotPort || 80);
+      const img = document.getElementById('camera-snapshot-img');
+      if (img && updated) {
+        img.src = `${updated.url}&t=${Date.now()}`;
+        showToast('Snapshot refreshed!', 'success');
+      }
+    });
+  }, 50);
 }
 
 // ─── Direct Slicer Ingestion to Printer ─────────────────────────
@@ -346,7 +539,6 @@ function handleSlicerDropToPrinter(printerId, file, container) {
     const hours = parsed.durationHours || 2.5;
     const cleanJobName = filename.replace(/\.(gcode|3mf)$/i, '');
 
-    // Configure temperatures
     let nozzleT = 215;
     let bedT = 60;
     if (parsed.material.includes('PETG') || (printer.loadedSpool && printer.loadedSpool.includes('PETG'))) {
@@ -444,7 +636,6 @@ function markJobComplete(printerId, container, fromTelemetry = false) {
     runningHours: (printer.runningHours || 0) + hoursAdded,
   });
 
-  // Show detailed confirmation
   const filMsg = deductedFilament 
     ? `Deducted ${jobGrams}g from "${deductedFilament.name}" (${remainingSpools} spools left).` 
     : `Logged ${jobGrams}g usage.`;
@@ -514,10 +705,8 @@ function openScrapLossModal(printerId, container) {
     onConfirm: () => {
       const wastedGrams = parseFloat(document.getElementById('scrap-grams')?.value) || 0;
       const rootCause = document.getElementById('scrap-cause-val')?.value || 'Print Failure';
-      const notes = document.getElementById('scrap-notes')?.value.trim();
       const scrapCost = Math.round(wastedGrams * 1.45);
 
-      // 1. Deduct wasted grams from loaded spool
       if (printer.loadedSpool && wastedGrams > 0) {
         const allFilaments = getAll('filaments');
         const loadedFil = allFilaments.find(f => 
@@ -534,7 +723,6 @@ function openScrapLossModal(printerId, container) {
         }
       }
 
-      // 2. Log Scrap Loss in Transactions
       create('transactions', {
         date: formatDate(new Date()),
         description: `Scrap Loss (${wastedGrams}g on ${printer.name}): ${rootCause}`,
@@ -543,7 +731,6 @@ function openScrapLossModal(printerId, container) {
         amount: -scrapCost,
       });
 
-      // 3. Reset Printer
       update('printers', printerId, {
         status: 'idle',
         currentJob: null,
@@ -561,7 +748,6 @@ function openScrapLossModal(printerId, container) {
     },
   });
 
-  // Wire chips inside modal
   setTimeout(() => {
     const chips = document.querySelectorAll('#root-cause-chips .root-cause-chip');
     const hiddenVal = document.getElementById('scrap-cause-val');
@@ -583,7 +769,7 @@ function openScrapLossModal(printerId, container) {
   }, 50);
 }
 
-// ─── IoT Connector Configuration Modal ─────────────────────────
+// ─── IoT Connector Configuration & Auto-Scan Modal ─────────────
 function openIoTConfigModal(printerId, container) {
   const printer = getById('printers', printerId);
   if (!printer) return;
@@ -592,39 +778,45 @@ function openIoTConfigModal(printerId, container) {
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;margin-bottom:var(--space-md);">
       <div style="font-weight:700;font-size:0.95rem;">${escapeHtml(printer.name)} — IoT Telemetry Connector</div>
       <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:2px;">
-        Connect directly to Klipper (Moonraker), Bambu Lab Local MQTT, or OctoPrint for real-time sensor streams and automated job triggers.
+        Connect directly to Klipper (Moonraker) over LAN for real-time sensor streams and automated job triggers.
       </div>
     </div>
 
     <div class="form-group">
       <label class="form-label">Firmware / Controller Protocol *</label>
       <select class="form-select" id="iot-protocol">
-        <option value="moonraker" ${printer.iotType === 'moonraker' ? 'selected' : ''}>Moonraker (Klipper WebSocket / REST)</option>
+        <option value="moonraker" ${printer.iotType === 'moonraker' ? 'selected' : ''}>Moonraker (Klipper HTTP / WebSocket)</option>
         <option value="bambu" ${printer.iotType === 'bambu' ? 'selected' : ''}>Bambu Lab Local Broker (MQTT over TLS)</option>
         <option value="octoprint" ${printer.iotType === 'octoprint' ? 'selected' : ''}>OctoPrint (REST API v1)</option>
-        <option value="snapmaker" ${printer.iotType === 'snapmaker' ? 'selected' : ''}>Snapmaker Serial / WiFi Hub</option>
       </select>
     </div>
 
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Printer IP / Hostname *</label>
-        <input class="form-input" id="iot-host" value="${escapeHtml(printer.iotHost || '192.168.1.120')}" placeholder="e.g. 192.168.1.120 or mainsail.local" />
+        <input class="form-input" id="iot-host" value="${escapeHtml(printer.iotHost || '192.168.0.144')}" placeholder="e.g. 192.168.0.144" />
       </div>
       <div class="form-group">
         <label class="form-label">Port</label>
-        <input class="form-input" id="iot-port" value="${escapeHtml(printer.iotPort || '7125')}" placeholder="7125 / 8883 / 5000" />
+        <input class="form-input" id="iot-port" value="${escapeHtml(printer.iotPort || '80')}" placeholder="80 (default for Snapmaker)" />
       </div>
     </div>
 
-    <div class="form-group">
-      <label class="form-label">API Key / Access Code</label>
-      <input class="form-input" type="password" id="iot-token" value="${escapeHtml(printer.iotToken || 'mk_secret_farm_token')}" placeholder="Moonraker API Key / Bambu Access Code" />
+    <!-- Auto-Scan Subnet Button if IP Keeps Changing -->
+    <div style="background:rgba(139,92,246,0.06);border:1px dashed rgba(139,92,246,0.3);border-radius:var(--radius-md);padding:10px 14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-size:0.82rem;font-weight:600;color:var(--text-primary);">IP keeps changing on Wi-Fi?</div>
+        <div style="font-size:0.72rem;color:var(--text-secondary);">Auto-scan your 192.168.0.X subnet to find the new IP</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="btn-auto-scan-subnet" type="button">
+        🔍 Auto-Scan LAN
+      </button>
     </div>
+    <div id="scan-status-msg" style="display:none;font-size:0.78rem;color:var(--accent);margin-bottom:12px;"></div>
 
     <div class="form-group">
       <label class="form-label">Webcam Stream URL (Optional)</label>
-      <input class="form-input" id="iot-webcam" value="${escapeHtml(printer.webcamUrl || '')}" placeholder="http://192.168.1.120/webcam/?action=stream" />
+      <input class="form-input" id="iot-webcam" value="${escapeHtml(printer.webcamUrl || 'http://192.168.0.144/server/files/camera/')}" placeholder="http://192.168.0.144/server/files/camera/" />
     </div>
 
     <div class="form-group" style="margin-top:12px;">
@@ -632,21 +824,17 @@ function openIoTConfigModal(printerId, container) {
         <input type="checkbox" id="iot-auto-deduct" ${printer.autoDeductSpool !== false ? 'checked' : ''} />
         <strong>Auto-Deduct Filament on PRINT_DONE Webhook</strong>
       </label>
-      <p style="font-size:0.75rem;color:var(--text-secondary);margin:4px 0 0 24px;">
-        When printer fires print finished notification, automatically deducts grams from loaded spool and moves order to QC.
-      </p>
     </div>
   `;
 
   showModal({
     title: 'Configure Physical Printer IoT Connector',
     body,
-    confirmText: 'Save Connector Settings',
-    onConfirm: () => {
+    confirmText: 'Save & Test Connection',
+    onConfirm: async () => {
       const iotType = document.getElementById('iot-protocol')?.value;
       const iotHost = document.getElementById('iot-host')?.value.trim();
       const iotPort = document.getElementById('iot-port')?.value.trim();
-      const iotToken = document.getElementById('iot-token')?.value.trim();
       const webcamUrl = document.getElementById('iot-webcam')?.value.trim();
       const autoDeductSpool = document.getElementById('iot-auto-deduct')?.checked;
 
@@ -654,16 +842,59 @@ function openIoTConfigModal(printerId, container) {
         iotType,
         iotHost,
         iotPort,
-        iotToken,
         webcamUrl,
         autoDeductSpool,
       });
 
-      showToast(`📡 IoT connector updated for ${printer.name}!`, 'success');
+      showToast(`📡 Testing connection to ${iotHost}...`, 'info');
+      const tel = await fetchPrinterTelemetry(iotHost, iotPort || 80);
+      if (tel.online) {
+        showToast(`🎉 Connected to ${printer.name}! Extruder: ${tel.currentNozzleTemp}°C, Bed: ${tel.currentBedTemp}°C`, 'success');
+      } else {
+        showToast(`⚠️ Saved, but could not reach ${iotHost}. Verify printer is powered on.`, 'warning');
+      }
+
       closeModal();
       render(container);
     },
   });
+
+  // Wire up the Auto-Scan button inside the modal
+  setTimeout(() => {
+    const scanBtn = document.getElementById('btn-auto-scan-subnet');
+    const hostInput = document.getElementById('iot-host');
+    const statusMsg = document.getElementById('scan-status-msg');
+
+    scanBtn?.addEventListener('click', async () => {
+      scanBtn.disabled = true;
+      scanBtn.textContent = 'Scanning...';
+      if (statusMsg) {
+        statusMsg.style.display = 'block';
+        statusMsg.textContent = 'Scanning 192.168.0.100 - 200 for Moonraker/Snapmaker...';
+      }
+
+      const result = await scanLocalSubnet('192.168.0', (ip, curr, total) => {
+        if (statusMsg) statusMsg.textContent = `Pinging ${ip} (${curr}/${total})...`;
+      });
+
+      if (result.found && hostInput) {
+        hostInput.value = result.ip;
+        if (statusMsg) {
+          statusMsg.style.color = 'var(--success)';
+          statusMsg.textContent = `🎉 Found Snapmaker at ${result.ip} (Klippy ${result.klippyState})! Updated input field.`;
+        }
+        showToast(`Found printer at ${result.ip}!`, 'success');
+      } else {
+        if (statusMsg) {
+          statusMsg.style.color = 'var(--danger)';
+          statusMsg.textContent = 'Could not find printer. Ensure machine Wi-Fi is connected.';
+        }
+      }
+
+      scanBtn.disabled = false;
+      scanBtn.textContent = '🔍 Auto-Scan LAN';
+    });
+  }, 50);
 }
 
 // ─── Quick Tare Shortcut from Printer Spool ────────────────────
@@ -701,13 +932,41 @@ function toggleTelemetryHeartbeat(container) {
   render(container);
 }
 
-function simulateTelemetryTick(container) {
+async function simulateTelemetryTick(container) {
   const printers = getAll('printers');
-  let anyCompleted = false;
 
-  printers.forEach(p => {
-    if (p.status === 'printing') {
-      // Fluctuating temperatures around target
+  for (const p of printers) {
+    // If it has physical LAN IP, poll real hardware
+    if (p.iotHost) {
+      const tel = await fetchPrinterTelemetry(p.iotHost, p.iotPort || 80);
+      if (tel.online) {
+        update('printers', p.id, {
+          currentNozzleTemp: tel.currentNozzleTemp,
+          targetNozzleTemp: tel.targetNozzleTemp,
+          currentBedTemp: tel.currentBedTemp,
+          targetBedTemp: tel.targetBedTemp,
+          chamberTemp: tel.chamberTemp,
+          status: tel.status,
+          currentJob: tel.currentJob || p.currentJob,
+          jobProgress: tel.jobProgress || p.jobProgress,
+          elapsedMinutes: tel.elapsedMinutes || p.elapsedMinutes,
+        });
+
+        // Update DOM elements in real-time
+        const nozzleEl = document.getElementById(`temp-nozzle-${p.id}`);
+        const bedEl = document.getElementById(`temp-bed-${p.id}`);
+        const chamberEl = document.getElementById(`temp-chamber-${p.id}`);
+        const progValEl = document.getElementById(`prog-val-${p.id}`);
+        const progBarEl = document.getElementById(`prog-bar-${p.id}`);
+
+        if (nozzleEl) nozzleEl.textContent = tel.currentNozzleTemp;
+        if (bedEl) bedEl.textContent = tel.currentBedTemp;
+        if (chamberEl && tel.chamberTemp) chamberEl.textContent = tel.chamberTemp;
+        if (progValEl && tel.jobProgress) progValEl.textContent = `${tel.jobProgress}%`;
+        if (progBarEl && tel.jobProgress) progBarEl.style.width = `${tel.jobProgress}%`;
+      }
+    } else if (p.status === 'printing') {
+      // Simulated machine jitter
       const targetNozzle = p.targetNozzleTemp || 215;
       const targetBed = p.targetBedTemp || 60;
       const jitterNozzle = targetNozzle + (Math.floor(Math.random() * 3) - 1);
@@ -723,7 +982,6 @@ function simulateTelemetryTick(container) {
         jobProgress: newProgress,
       });
 
-      // Update DOM gauges directly if present
       const nozzleEl = document.getElementById(`temp-nozzle-${p.id}`);
       const bedEl = document.getElementById(`temp-bed-${p.id}`);
       const progValEl = document.getElementById(`prog-val-${p.id}`);
@@ -736,13 +994,11 @@ function simulateTelemetryTick(container) {
       if (progBarEl) progBarEl.style.width = `${newProgress}%`;
       if (elapsedEl) elapsedEl.textContent = `${Math.floor(newElapsed/60)}h ${newElapsed%60}m`;
 
-      // Auto-trigger completion on 100%
-      if (newProgress >= 100 && !anyCompleted) {
-        anyCompleted = true;
+      if (newProgress >= 100) {
         markJobComplete(p.id, container, true);
       }
     }
-  });
+  }
 }
 
 // ─── Machine Controls (Pause, Preheat, Assign) ────────────────
@@ -965,7 +1221,7 @@ function openPrinterModal(container, editId = null) {
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Machine Name / ID *</label>
-        <input class="form-input" id="pr-name" value="${escapeHtml(existing?.name || '')}" placeholder="e.g. Snapmaker U1 #02" required />
+        <input class="form-input" id="pr-name" value="${escapeHtml(existing?.name || '')}" placeholder="e.g. Snapmaker U1 #01" required />
       </div>
       <div class="form-group">
         <label class="form-label">Printer Model *</label>
@@ -986,12 +1242,23 @@ function openPrinterModal(container, editId = null) {
 
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">Workshop Location</label>
+        <label class="form-label">Workshop Bay / Location</label>
         <input class="form-input" id="pr-location" value="${escapeHtml(existing?.location || 'Workbench 1')}" placeholder="e.g. Workbench A1 — Enclosed" />
       </div>
       <div class="form-group">
-        <label class="form-label">Initial Running Hours</label>
+        <label class="form-label">Running Hours Odometer</label>
         <input class="form-input" type="number" id="pr-hours" min="0" value="${existing?.runningHours || 0}" />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">LAN IP Address</label>
+        <input class="form-input" id="pr-ip" value="${escapeHtml(existing?.iotHost || '')}" placeholder="e.g. 192.168.0.144" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Port</label>
+        <input class="form-input" id="pr-port" value="${escapeHtml(existing?.iotPort || '80')}" placeholder="80" />
       </div>
     </div>
 
@@ -1021,6 +1288,8 @@ function openPrinterModal(container, editId = null) {
         nozzleDiameter: document.getElementById('pr-nozzle')?.value.trim() || '0.4 mm Hardened Steel',
         location: document.getElementById('pr-location')?.value.trim() || 'Workshop Farm',
         runningHours: parseInt(document.getElementById('pr-hours')?.value) || 0,
+        iotHost: document.getElementById('pr-ip')?.value.trim() || '',
+        iotPort: document.getElementById('pr-port')?.value.trim() || '80',
         notes: document.getElementById('pr-notes')?.value.trim() || '',
         status: existing?.status || 'idle',
         targetNozzleTemp: existing?.targetNozzleTemp || 0,
