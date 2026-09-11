@@ -8,6 +8,7 @@ import { MATERIAL_TYPES } from '../data/seed.js';
 import { formatCurrency, escapeHtml } from '../utils/helpers.js';
 import { ICONS } from '../utils/icons.js';
 import { showToast } from '../components/toast.js';
+import { readSlicerFile } from '../utils/slicerParser.js';
 
 let _lastCalculated = {
   material: 'PLA+',
@@ -273,52 +274,21 @@ function setupSlicerFileHandlers(container) {
 }
 
 function parseSlicerFile(file, container) {
-  const reader = new FileReader();
-  
-  // Read first 64KB for header comments (or entire file if small)
-  reader.onload = (e) => {
-    const text = e.target.result;
-    let extractedGrams = 0;
-    let extractedSeconds = 0;
-    let extractedMaterial = '';
-
-    // Bambu Studio / OrcaSlicer / PrusaSlicer format:
-    // ; filament used [g] = 142.85
-    const massMatch = text.match(/;\s*filament used\s*\[g\]\s*=\s*([\d.]+)/i) ||
-                      text.match(/;\s*filament used\s*=\s*([\d.]+)g/i) ||
-                      text.match(/;\s*total filament used\s*\[g\]\s*=\s*([\d.]+)/i);
-
-    if (massMatch) extractedGrams = parseFloat(massMatch[1]);
-
-    // Estimated time formats:
-    // ; total estimated time = 3h 24m 12s or ; estimated printing time (normal mode) = 3h 24m
-    const timeTextMatch = text.match(/;\s*(?:total )?estimated (?:printing )?time[^\n]*=\s*([^\n]+)/i);
-    if (timeTextMatch) {
-      const timeStr = timeTextMatch[1];
-      const hours = (timeStr.match(/(\d+)h/i) || [])[1] || 0;
-      const mins = (timeStr.match(/(\d+)m/i) || [])[1] || 0;
-      extractedSeconds = (parseInt(hours) * 3600) + (parseInt(mins) * 60);
-    } else {
-      // Cura TIME:12345
-      const curaTimeMatch = text.match(/;TIME:(\d+)/i);
-      if (curaTimeMatch) extractedSeconds = parseInt(curaTimeMatch[1]);
+  readSlicerFile(file, (err, parsed, fileName) => {
+    if (err) {
+      showToast('Error reading slicer file', 'error');
+      return;
     }
 
-    // Material detection
-    const matMatch = text.match(/;\s*filament_type\s*=\s*([A-Za-z0-9+-]+)/i) ||
-                     text.match(/material\s*=\s*([A-Za-z0-9+-]+)/i);
-    if (matMatch) extractedMaterial = matMatch[1].trim();
-
-    if (extractedGrams > 0 || extractedSeconds > 0) {
-      if (extractedGrams > 0) {
+    if (parsed.grams > 0 || parsed.seconds > 0) {
+      if (parsed.grams > 0) {
         const weightInput = container.querySelector('#calc-weight');
-        if (weightInput) weightInput.value = extractedGrams.toFixed(1);
+        if (weightInput) weightInput.value = parsed.grams;
       }
 
-      if (extractedSeconds > 0) {
-        const hours = (extractedSeconds / 3600).toFixed(2);
+      if (parsed.durationHours > 0) {
         const timeInput = container.querySelector('#calc-time');
-        if (timeInput) timeInput.value = hours;
+        if (timeInput) timeInput.value = parsed.durationHours;
       }
 
       const cleanFileName = file.name.replace(/\.[^/.]+$/, "");
@@ -332,19 +302,17 @@ function parseSlicerFile(file, container) {
         banner.innerHTML = `
           <strong>✓ Slicer File Successfully Parsed:</strong> ${escapeHtml(file.name)} 
           <div style="margin-top:3px;font-size:0.8rem;color:#22c55e;">
-            Mass: <strong>${extractedGrams.toFixed(1)}g</strong> • Print Time: <strong>${(extractedSeconds/3600).toFixed(1)} hours</strong>
+            Mass: <strong>${parsed.grams}g</strong> • Print Time: <strong>${parsed.durationHours} hours</strong>
           </div>
         `;
       }
 
-      showToast(`Parsed: ${extractedGrams.toFixed(0)}g / ${(extractedSeconds/3600).toFixed(1)}h from ${file.name}`, 'success');
+      showToast(`Parsed: ${parsed.grams}g / ${parsed.durationHours}h from ${file.name}`, 'success');
       calculate(container);
     } else {
       showToast('Could not find slicer comment metadata. Using standard manual parameters.', 'info');
     }
-  };
-
-  reader.readAsText(file.slice(0, 150000));
+  });
 }
 
 // ─── WhatsApp Quote & Order Creation ─────────────────────────

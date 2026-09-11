@@ -10,6 +10,7 @@ import { ICONS } from '../utils/icons.js';
 import { showModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
 import { renderNumakersSpool, NUMAKERS_PHOTO_MAP } from '../utils/spoolRenderer.js';
+import { openTareCalculatorModal } from '../utils/tareCalculator.js';
 
 let _view = 'grid'; // grid | table
 let _filterMaterial = '';
@@ -67,6 +68,10 @@ function render(container) {
         <p class="text-secondary">${items.length} materials • ${totalSpools} spools in stock • Official Numakers 3D Spool Showcase</p>
       </div>
       <div class="page-header-actions">
+        <button class="btn btn-secondary" id="btn-scale-tare">
+          <span style="font-size:1.05rem;">⚖️</span>
+          Digital Scale Tare
+        </button>
         <button class="btn btn-primary" id="btn-add-filament">
           <span class="nav-icon">${ICONS.plus}</span>
           Add Filament
@@ -130,6 +135,7 @@ function renderGrid(items) {
           <!-- Numakers Spool Showcase Hero -->
           <div class="filament-spool-hero">
             <div class="filament-card-actions" style="position:absolute;top:10px;right:10px;display:flex;gap:4px;z-index:10;">
+              <button class="btn-icon btn-sm" data-action="tare" data-id="${f.id}" title="Weigh & Tare Spool">⚖️</button>
               <button class="btn-icon btn-sm" data-action="edit" data-id="${f.id}" title="Edit filament">${ICONS.edit}</button>
               <button class="btn-icon btn-sm" data-action="duplicate" data-id="${f.id}" title="Duplicate">${ICONS.copy}</button>
               <button class="btn-icon btn-sm" data-action="delete" data-id="${f.id}" title="Delete" style="color:var(--danger);">${ICONS.trash}</button>
@@ -209,6 +215,7 @@ function renderTable(items) {
               <td style="color:var(--text-secondary)">${escapeHtml(f.brand || 'Numakers')}</td>
               <td>
                 <div class="row-actions">
+                  <button class="btn-icon" data-action="tare" data-id="${f.id}" title="Weigh & Tare Spool">⚖️</button>
                   <button class="btn-icon" data-action="edit" data-id="${f.id}" title="Edit">${ICONS.edit}</button>
                   <button class="btn-icon" data-action="duplicate" data-id="${f.id}" title="Duplicate">${ICONS.copy}</button>
                   <button class="btn-icon" data-action="delete" data-id="${f.id}" title="Delete" style="color:var(--danger)">${ICONS.trash}</button>
@@ -225,6 +232,11 @@ function renderTable(items) {
 function bindEvents(container) {
   // Add filament
   container.querySelector('#btn-add-filament')?.addEventListener('click', () => openFilamentModal());
+
+  // Digital Scale Tare
+  container.querySelector('#btn-scale-tare')?.addEventListener('click', () => {
+    openTareCalculatorModal(null, () => render(container));
+  });
 
   // Search
   container.querySelector('#inv-search')?.addEventListener('input', debounce((e) => {
@@ -265,13 +277,15 @@ function bindEvents(container) {
     });
   });
 
-  // Card/Row actions (edit, delete, duplicate, inc/dec spool stepper)
+  // Card/Row actions (edit, delete, duplicate, inc/dec spool stepper, tare)
   container.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const action = btn.dataset.action;
       const id = btn.dataset.id;
-      if (action === 'edit') openFilamentModal(id);
+      if (action === 'tare') {
+        openTareCalculatorModal(id, () => render(container));
+      } else if (action === 'edit') openFilamentModal(id);
       else if (action === 'delete') confirmDelete(id, container);
       else if (action === 'duplicate') {
         duplicate('filaments', id);

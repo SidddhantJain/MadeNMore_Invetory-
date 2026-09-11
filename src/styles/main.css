@@ -2427,3 +2427,77 @@ h4 { font-size: 1rem; }
   box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
 }
 
+/* ── 33. IOT FLEET TELEMETRY & SCRAP LOGGER STYLES ───────────── */
+.printer-iot-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.printer-iot-badge:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.printer-quick-drop {
+  border: 1.5px dashed rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
+  padding: 14px 10px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.015);
+  cursor: pointer;
+  transition: all var(--transition);
+  margin-bottom: 12px;
+}
+
+.printer-quick-drop:hover,
+.printer-quick-drop.drag-over {
+  border-color: var(--accent);
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.telemetry-pulse {
+  animation: pulse-dot 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(0.95); opacity: 0.7; }
+  50% { transform: scale(1.25); opacity: 1; filter: drop-shadow(0 0 4px currentColor); }
+  100% { transform: scale(0.95); opacity: 0.7; }
+}
+
+.root-cause-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+  user-select: none;
+}
+
+.root-cause-chip:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.root-cause-chip.selected {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  font-weight: 600;
+}
+
