@@ -165,6 +165,22 @@ const TRANSACTION_SEED = [
   { date: '2026-06-25', description: 'Prior Sales Revenue',            type: 'expense', category: 'Other',              amount: 15900 },
 ];
 
+/** Sample order seed — demonstrates the percentage payment system */
+const ORDER_SEED = [
+  {
+    clientName: 'Product Designer',
+    description: 'Custom 3D printed product design commission',
+    totalAmount: 6750,
+    status: 'completed',
+    notes: 'Full design project — paid in 3 installments',
+    payments: [
+      { id: 'pay1', date: '2026-09-07', percentage: 28, amount: 2000, notes: 'First installment (28%)' },
+      { id: 'pay2', date: '2026-09-07', percentage: 22, amount: 1375, notes: 'Second installment (22%)' },
+      { id: 'pay3', date: '2026-09-09', percentage: 50, amount: 3375, notes: 'Final payment — 100% complete' },
+    ],
+  },
+];
+
 /** Seed the database with initial data */
 export function seedDatabase() {
   if (isSeeded()) return false;
@@ -177,6 +193,11 @@ export function seedDatabase() {
   // Seed transactions
   TRANSACTION_SEED.forEach(t => {
     create('transactions', t);
+  });
+
+  // Seed orders
+  ORDER_SEED.forEach(o => {
+    create('orders', o);
   });
 
   markSeeded();
