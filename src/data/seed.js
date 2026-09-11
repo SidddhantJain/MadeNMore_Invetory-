@@ -165,19 +165,84 @@ const TRANSACTION_SEED = [
   { date: '2026-06-25', description: 'Prior Sales Revenue',            type: 'expense', category: 'Other',              amount: 15900 },
 ];
 
-/** Sample order seed — demonstrates the percentage payment system */
+/** Sample order seed — demonstrates multi-item assemblies and Kanban production pipeline */
 const ORDER_SEED = [
   {
     clientName: 'Product Designer',
+    clientPhone: '+91 98230 44551',
+    clientEmail: 'contact@designstudio.in',
+    clientGstin: '27AAAAA0000A1Z5',
     description: 'Custom 3D printed product design commission',
-    totalAmount: 6750,
+    priority: 'standard',
+    kanbanStage: 'completed',
     status: 'completed',
     notes: 'Full design project — paid in 3 installments',
+    items: [
+      { id: 'it1', name: 'Main Ergonomic Housing', material: 'ABS', color: 'Black (orange)', quantity: 2, unitPrice: 1875, subtotal: 3750, status: 'completed' },
+      { id: 'it2', name: 'Structural Internal Chassis', material: 'PETG-HS', color: 'Pitch Black', quantity: 2, unitPrice: 1000, subtotal: 2000, status: 'completed' },
+      { id: 'it3', name: 'Shock Absorbing Gasket & Feet', material: 'TPU+', color: 'Agloo Black', quantity: 4, unitPrice: 250, subtotal: 1000, status: 'completed' },
+    ],
+    totalAmount: 6750,
     payments: [
       { id: 'pay1', date: '2026-09-07', percentage: 28, amount: 2000, notes: 'First installment (28%)' },
       { id: 'pay2', date: '2026-09-07', percentage: 22, amount: 1375, notes: 'Second installment (22%)' },
       { id: 'pay3', date: '2026-09-09', percentage: 50, amount: 3375, notes: 'Final payment — 100% complete' },
     ],
+  },
+  {
+    clientName: 'RoboTech Automation Labs',
+    clientPhone: '+91 94220 11223',
+    clientEmail: 'rnd@robotechpune.com',
+    clientGstin: '27BBBBB1111B1Z2',
+    description: 'Inspection Drone Arm Linkages & Sensor Mounts',
+    priority: 'express',
+    kanbanStage: 'printing',
+    status: 'active',
+    notes: 'Urgent pilot batch for field testing in Bhosari MIDC',
+    items: [
+      { id: 'it4', name: 'Heavy-Duty Motor Arm Bracket', material: 'PETG-HS', color: 'dark greay', quantity: 4, unitPrice: 850, subtotal: 3400, status: 'printing' },
+      { id: 'it5', name: 'LiDAR Sensor Protective Housing', material: 'ABS', color: 'Military Khaki', quantity: 2, unitPrice: 1100, subtotal: 2200, status: 'queued' },
+      { id: 'it6', name: 'Anti-Vibration Dampening Mount', material: 'TPU+', color: 'Blue benadable', quantity: 4, unitPrice: 350, subtotal: 1400, status: 'queued' },
+    ],
+    totalAmount: 7000,
+    payments: [
+      { id: 'pay4', date: '2026-09-10', percentage: 30, amount: 2100, notes: '30% Advance Deposit — Production Started' },
+    ],
+  },
+  {
+    clientName: 'Saurab — Custom Scale Models',
+    clientPhone: '+91 91580 99887',
+    clientEmail: 'saurab.mushak@gmail.com',
+    description: 'Architectural Presentation Scale Model',
+    priority: 'standard',
+    kanbanStage: 'post_processing',
+    status: 'active',
+    notes: 'Fine layer height (0.12mm) in Silk Dual Color',
+    items: [
+      { id: 'it7', name: 'Tower Facade Centerpiece', material: 'PLA+', color: 'silk dual color (red and black )', quantity: 1, unitPrice: 2800, subtotal: 2800, status: 'completed' },
+      { id: 'it8', name: 'Landscape Pavilion Base', material: 'PLA+', color: 'cool white', quantity: 1, unitPrice: 1700, subtotal: 1700, status: 'completed' },
+    ],
+    totalAmount: 4500,
+    payments: [
+      { id: 'pay5', date: '2026-09-08', percentage: 50, amount: 2250, notes: '50% Milestone Advance' },
+    ],
+  },
+  {
+    clientName: 'Pimpri Precision Works',
+    clientPhone: '+91 98900 33441',
+    clientEmail: 'tooling@pimprispairs.com',
+    clientGstin: '27CCCCC2222C1Z8',
+    description: 'Drill Jig Bushing Retainer Tooling',
+    priority: 'overnight',
+    kanbanStage: 'quote',
+    status: 'quote',
+    validUntil: '2026-09-25',
+    notes: 'Quotation sent. Awaiting engineering sign-off on 40% infill PETG.',
+    items: [
+      { id: 'it9', name: 'Assembly Line Holding Nest', material: 'PETG-HS', color: 'teal Blue', quantity: 5, unitPrice: 950, subtotal: 4750, status: 'queued' },
+    ],
+    totalAmount: 4750,
+    payments: [],
   },
 ];
 
