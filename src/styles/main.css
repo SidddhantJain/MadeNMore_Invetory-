@@ -2048,3 +2048,180 @@ h4 { font-size: 1rem; }
     width: 100% !important;
   }
 }
+
+/* ── 31. NUMAKERS SPOOL SHOWCASE & INVENTORY ───────────────── */
+.filament-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 20px;
+}
+
+.filament-card {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: rgba(18, 21, 38, 0.7);
+  border: 1px solid var(--border);
+  transition: all var(--transition);
+}
+
+.filament-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-hover);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+
+.filament-spool-hero {
+  height: 180px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 60%, rgba(255, 255, 255, 0.04) 0%, rgba(10, 12, 20, 0.9) 100%);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.numakers-spool-display {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.filament-card:hover .numakers-spool-display {
+  transform: scale(1.07) rotate(-2deg);
+}
+
+.spool-glow-backdrop {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  filter: blur(24px);
+  pointer-events: none;
+}
+
+.numakers-real-photo {
+  max-height: 155px;
+  max-width: 155px;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.65));
+  z-index: 1;
+}
+
+.numakers-procedural-svg {
+  width: 145px;
+  height: 145px;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.7));
+  z-index: 1;
+}
+
+.numakers-pill-tag {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  z-index: 2;
+}
+
+/* Thumbnail size for table rows */
+.numakers-spool-display.size-thumb {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+}
+
+.numakers-spool-display.size-thumb .numakers-real-photo {
+  max-height: 40px;
+  max-width: 40px;
+}
+
+.numakers-spool-display.size-thumb .numakers-procedural-svg {
+  width: 40px;
+  height: 40px;
+}
+
+.numakers-spool-display.size-thumb .spool-glow-backdrop,
+.numakers-spool-display.size-thumb .numakers-pill-tag {
+  display: none;
+}
+
+.filament-card-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.filament-card-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.filament-card-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.filament-card-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.spool-stepper {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 2px;
+}
+
+.spool-stepper-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: bold;
+  transition: all var(--transition-fast);
+}
+
+.spool-stepper-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.spool-stepper-val {
+  padding: 0 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}

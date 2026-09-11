@@ -1,14 +1,15 @@
 /**
  * Made N More — Inventory Page
- * Filament inventory manager with grid/table views, CRUD, filters, search, inline edit
+ * Filament inventory manager with Numakers 3D Spool visualizer, grid/table views, CRUD, filters, quick stepper
  */
 
 import { getAll, create, update, remove, duplicate } from '../data/store.js';
-import { MATERIAL_TYPES, MATERIAL_BADGES, getSwatchClass } from '../data/seed.js';
+import { MATERIAL_TYPES, MATERIAL_BADGES } from '../data/seed.js';
 import { escapeHtml, debounce } from '../utils/helpers.js';
 import { ICONS } from '../utils/icons.js';
 import { showModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
+import { renderNumakersSpool, NUMAKERS_PHOTO_MAP } from '../utils/spoolRenderer.js';
 
 let _view = 'grid'; // grid | table
 let _filterMaterial = '';
@@ -63,7 +64,7 @@ function render(container) {
     <div class="page-header animate-in">
       <div class="page-header-left">
         <h1>Filament Inventory</h1>
-        <p class="text-secondary">${items.length} filaments • ${totalSpools} spools in stock</p>
+        <p class="text-secondary">${items.length} materials • ${totalSpools} spools in stock • Official Numakers 3D Spool Showcase</p>
       </div>
       <div class="page-header-actions">
         <button class="btn btn-primary" id="btn-add-filament">
@@ -78,7 +79,7 @@ function render(container) {
       <div class="toolbar-left">
         <div class="search-bar">
           <span class="search-icon">${ICONS.search}</span>
-          <input type="text" id="inv-search" placeholder="Search filaments..." value="${escapeHtml(_searchQuery)}"/>
+          <input type="text" id="inv-search" placeholder="Search filaments by color, material, brand..." value="${escapeHtml(_searchQuery)}"/>
         </div>
         <select class="filter-select" id="inv-filter-material">
           <option value="">All Materials</option>
@@ -92,11 +93,11 @@ function render(container) {
       </div>
       <div class="toolbar-right">
         <div class="view-toggle">
-          <button class="${_view === 'grid' ? 'active' : ''}" data-view="grid" title="Grid view">
-            <span style="width:16px;height:16px;">${ICONS.grid}</span>
+          <button class="view-toggle-btn ${_view === 'grid' ? 'active' : ''}" data-view="grid" title="Spool Grid view">
+            <span style="width:16px;height:16px;">${ICONS.grid}</span> Grid
           </button>
-          <button class="${_view === 'table' ? 'active' : ''}" data-view="table" title="Table view">
-            <span style="width:16px;height:16px;">${ICONS.list}</span>
+          <button class="view-toggle-btn ${_view === 'table' ? 'active' : ''}" data-view="table" title="Table view">
+            <span style="width:16px;height:16px;">${ICONS.list}</span> Table
           </button>
         </div>
       </div>
@@ -120,38 +121,40 @@ function renderGrid(items) {
   if (items.length === 0) {
     return `<div class="empty-state"><div class="empty-state-icon">${ICONS.spool}</div><p>No filaments found. Try adjusting your filters or add a new filament.</p></div>`;
   }
+
   return `
     <div class="filament-grid">
       ${items.map(f => {
-        const swatchClass = getSwatchClass(f.name, f.material);
         return `
-        <div class="card card-lift filament-card" data-id="${f.id}">
-          <div class="filament-card-actions">
-            <button class="btn-icon" data-action="edit" data-id="${f.id}" title="Edit">
-              <span style="width:16px;height:16px;">${ICONS.edit}</span>
-            </button>
-            <button class="btn-icon" data-action="duplicate" data-id="${f.id}" title="Duplicate">
-              <span style="width:16px;height:16px;">${ICONS.copy}</span>
-            </button>
-            <button class="btn-icon" data-action="delete" data-id="${f.id}" title="Delete" style="color:var(--danger);">
-              <span style="width:16px;height:16px;">${ICONS.trash}</span>
-            </button>
-          </div>
-          <div class="filament-card-top">
-            <div class="color-swatch color-swatch-lg ${swatchClass}" style="background-color: ${f.hex || '#888'};"></div>
-            <div class="filament-card-info">
-              <div class="filament-card-name">${escapeHtml(f.name)}</div>
-              <div class="filament-card-meta">
-                ${getMaterialBadge(f.material)}
-                <span class="badge ${f.usable !== false ? 'badge-yes' : 'badge-no'}">${f.usable !== false ? 'Usable' : 'Not Usable'}</span>
-              </div>
+        <div class="card filament-card" data-id="${f.id}">
+          <!-- Numakers Spool Showcase Hero -->
+          <div class="filament-spool-hero">
+            <div class="filament-card-actions" style="position:absolute;top:10px;right:10px;display:flex;gap:4px;z-index:10;">
+              <button class="btn-icon btn-sm" data-action="edit" data-id="${f.id}" title="Edit filament">${ICONS.edit}</button>
+              <button class="btn-icon btn-sm" data-action="duplicate" data-id="${f.id}" title="Duplicate">${ICONS.copy}</button>
+              <button class="btn-icon btn-sm" data-action="delete" data-id="${f.id}" title="Delete" style="color:var(--danger);">${ICONS.trash}</button>
             </div>
+            ${renderNumakersSpool(f, 'card')}
           </div>
-          <div class="filament-card-bottom">
-            <span class="filament-card-brand">${escapeHtml(f.brand || '—')}</span>
-            <div class="filament-card-spools">
-              <span class="spool-icon">${ICONS.spool}</span>
-              <strong>${f.spools || 0}</strong> spool${(f.spools || 0) !== 1 ? 's' : ''}
+
+          <div class="filament-card-body">
+            <div class="filament-card-title-row">
+              <div class="filament-card-name">${escapeHtml(f.name)}</div>
+            </div>
+
+            <div class="filament-card-meta" style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+              ${getMaterialBadge(f.material)}
+              <span class="badge ${f.usable !== false ? 'badge-yes' : 'badge-no'}">${f.usable !== false ? 'Usable' : 'Not Usable'}</span>
+              <span class="badge" style="background:rgba(255,255,255,0.06);color:var(--text-secondary);font-size:0.7rem;">${escapeHtml(f.brand || 'Numakers')}</span>
+            </div>
+
+            <div class="filament-card-bottom">
+              <span class="text-secondary" style="font-size:0.8rem;">Spools in Stock:</span>
+              <div class="spool-stepper">
+                <button class="spool-stepper-btn" data-action="dec-spool" data-id="${f.id}" title="Decrease 1 spool">-</button>
+                <span class="spool-stepper-val">${f.spools || 0}</span>
+                <button class="spool-stepper-btn" data-action="inc-spool" data-id="${f.id}" title="Add 1 spool">+</button>
+              </div>
             </div>
           </div>
         </div>`;
@@ -164,13 +167,14 @@ function renderTable(items) {
   if (items.length === 0) {
     return `<div class="empty-state"><div class="empty-state-icon">${ICONS.spool}</div><p>No filaments found.</p></div>`;
   }
+
   return `
     <div class="table-container">
       <table class="table">
         <thead>
           <tr>
             <th style="width:40px">#</th>
-            <th>Color</th>
+            <th>Numakers Spool / Color</th>
             <th data-sort="material" class="${_sortField === 'material' ? 'sorted' : ''}">Material <span class="sort-icon">↕</span></th>
             <th data-sort="spools" class="${_sortField === 'spools' ? 'sorted' : ''}">Spools <span class="sort-icon">↕</span></th>
             <th>Status</th>
@@ -180,22 +184,28 @@ function renderTable(items) {
         </thead>
         <tbody>
           ${items.map((f, i) => {
-            const swatchClass = getSwatchClass(f.name, f.material);
             return `
             <tr data-id="${f.id}">
               <td style="color:var(--text-muted)">${i + 1}</td>
               <td>
                 <div class="flex items-center gap-md">
-                  <div class="color-swatch ${swatchClass}" style="background-color: ${f.hex || '#888'};"></div>
-                  <span class="inline-editable" data-field="name" data-id="${f.id}">${escapeHtml(f.name)}</span>
+                  ${renderNumakersSpool(f, 'thumb')}
+                  <div>
+                    <span class="inline-editable" style="font-weight:600;color:var(--text-primary);" data-field="name" data-id="${f.id}">${escapeHtml(f.name)}</span>
+                    <div style="font-size:0.75rem;color:var(--text-muted);">${f.hex || ''}</div>
+                  </div>
                 </div>
               </td>
               <td>${getMaterialBadge(f.material)}</td>
               <td>
-                <span class="inline-editable" data-field="spools" data-id="${f.id}">${f.spools || 0}</span>
+                <div class="spool-stepper">
+                  <button class="spool-stepper-btn" data-action="dec-spool" data-id="${f.id}">-</button>
+                  <span class="spool-stepper-val">${f.spools || 0}</span>
+                  <button class="spool-stepper-btn" data-action="inc-spool" data-id="${f.id}">+</button>
+                </div>
               </td>
               <td><span class="badge ${f.usable !== false ? 'badge-yes' : 'badge-no'}">${f.usable !== false ? 'Usable' : 'Not Usable'}</span></td>
-              <td style="color:var(--text-secondary)">${escapeHtml(f.brand || '—')}</td>
+              <td style="color:var(--text-secondary)">${escapeHtml(f.brand || 'Numakers')}</td>
               <td>
                 <div class="row-actions">
                   <button class="btn-icon" data-action="edit" data-id="${f.id}" title="Edit">${ICONS.edit}</button>
@@ -254,7 +264,7 @@ function bindEvents(container) {
     });
   });
 
-  // Card/Row actions (edit, delete, duplicate)
+  // Card/Row actions (edit, delete, duplicate, inc/dec spool stepper)
   container.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -266,6 +276,18 @@ function bindEvents(container) {
         duplicate('filaments', id);
         showToast('Filament duplicated!', 'success');
         render(container);
+      } else if (action === 'inc-spool') {
+        const item = getAll('filaments').find(f => f.id === id);
+        if (item) {
+          update('filaments', id, { spools: (item.spools || 0) + 1 });
+          render(container);
+        }
+      } else if (action === 'dec-spool') {
+        const item = getAll('filaments').find(f => f.id === id);
+        if (item && item.spools > 0) {
+          update('filaments', id, { spools: item.spools - 1 });
+          render(container);
+        }
       }
     });
   });
@@ -329,11 +351,13 @@ function openFilamentModal(editId = null) {
   const existing = editId ? getAll('filaments').find(f => f.id === editId) : null;
   const isEdit = !!existing;
 
+  const currentImage = existing?.image || (existing ? NUMAKERS_PHOTO_MAP[existing.name] : '') || '';
+
   const body = `
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Color Name *</label>
-        <input class="form-input" id="fil-name" value="${escapeHtml(existing?.name || '')}" placeholder="e.g. Pitch Black" required />
+        <input class="form-input" id="fil-name" value="${escapeHtml(existing?.name || '')}" placeholder="e.g. Pitch Black, Midnight Grey" required />
       </div>
       <div class="form-group">
         <label class="form-label">Material *</label>
@@ -342,9 +366,10 @@ function openFilamentModal(editId = null) {
         </select>
       </div>
     </div>
+
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">Color</label>
+        <label class="form-label">Filament Color</label>
         <div class="form-color-wrapper">
           <div class="form-color-preview" id="fil-color-preview" style="background-color: ${existing?.hex || '#888888'}"></div>
           <input type="color" id="fil-hex" value="${existing?.hex || '#888888'}" />
@@ -355,6 +380,23 @@ function openFilamentModal(editId = null) {
         <input class="form-input" type="number" id="fil-spools" min="0" value="${existing?.spools ?? 1}" />
       </div>
     </div>
+
+    <!-- Numakers Photo Selector -->
+    <div class="form-group" style="background:var(--bg-card);padding:12px;border-radius:var(--radius-md);border:1px solid var(--border);">
+      <label class="form-label" style="font-weight:600;">Numakers Official Spool Photo</label>
+      <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:8px;">
+        Select from available Numakers factory photos or enter custom URL:
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+        ${Object.keys(NUMAKERS_PHOTO_MAP).map(key => `
+          <button type="button" class="btn btn-ghost btn-sm btn-preset-photo" data-url="${NUMAKERS_PHOTO_MAP[key]}" style="font-size:0.75rem;padding:4px 8px;">
+            ${key}
+          </button>
+        `).join('')}
+      </div>
+      <input class="form-input" id="fil-image" value="${escapeHtml(currentImage)}" placeholder="Optional photo URL (e.g. /spools/Pitch_Black_Spool_Printzy.webp)" />
+    </div>
+
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Brand</label>
@@ -368,16 +410,17 @@ function openFilamentModal(editId = null) {
         </div>
       </div>
     </div>
+
     <div class="form-group">
       <label class="form-label">Notes</label>
-      <textarea class="form-textarea form-input" id="fil-notes" placeholder="Optional notes...">${escapeHtml(existing?.notes || '')}</textarea>
+      <textarea class="form-textarea form-input" id="fil-notes" placeholder="Batch details, print temperature, etc...">${escapeHtml(existing?.notes || '')}</textarea>
     </div>
   `;
 
   showModal({
-    title: isEdit ? 'Edit Filament' : 'Add New Filament',
+    title: isEdit ? 'Edit Filament Spool' : 'Add New Numakers Spool',
     body,
-    confirmText: isEdit ? 'Save Changes' : 'Add Filament',
+    confirmText: isEdit ? 'Save Changes' : 'Add Spool',
     onConfirm: () => {
       const name = document.getElementById('fil-name').value.trim();
       if (!name) {
@@ -390,6 +433,7 @@ function openFilamentModal(editId = null) {
         material: document.getElementById('fil-material').value,
         hex: document.getElementById('fil-hex').value,
         spools: parseInt(document.getElementById('fil-spools').value) || 0,
+        image: document.getElementById('fil-image').value.trim(),
         brand: document.getElementById('fil-brand').value.trim(),
         usable: document.getElementById('fil-usable-switch').classList.contains('active'),
         notes: document.getElementById('fil-notes').value.trim(),
@@ -408,7 +452,6 @@ function openFilamentModal(editId = null) {
       if (contentEl) render(contentEl);
     },
     onReady: () => {
-      // Color picker sync
       const colorInput = document.getElementById('fil-hex');
       const colorPreview = document.getElementById('fil-color-preview');
       if (colorInput && colorPreview) {
@@ -417,7 +460,16 @@ function openFilamentModal(editId = null) {
         });
       }
 
-      // Toggle switch
+      // Presets
+      document.querySelectorAll('.btn-preset-photo').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const url = btn.dataset.url;
+          const imgInput = document.getElementById('fil-image');
+          if (imgInput) imgInput.value = url;
+          showToast(`Applied photo: ${btn.textContent.trim()}`, 'info');
+        });
+      });
+
       const toggle = document.getElementById('fil-usable-switch');
       const label = document.getElementById('fil-usable-label');
       if (toggle) {
