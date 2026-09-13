@@ -4,7 +4,11 @@
 const API_HOST = typeof window !== 'undefined' && window.location && window.location.hostname
   ? window.location.hostname
   : 'localhost';
-export const BASE_URL = `http://${API_HOST}:4000/api`;
+export const BASE_URL = typeof window !== 'undefined' && window.location
+  ? (window.location.port === '3000' || window.location.port === '5173'
+      ? window.location.protocol + '//' + window.location.hostname + ':4000/api'
+      : window.location.origin + '/api')
+  : 'http://localhost:4000/api';
 
 // In-memory cache for immediate synchronous reads & reactivity
 let _cache = {
