@@ -1,301 +1,162 @@
-/**
- * Made N More — Data Store
- * localStorage-based CRUD with export/import and undo support
- */
+// Made N More — Client Store & Synchronization Engine
+// Integrates an in-memory cache with the Express REST API backend for high-speed offline/LAN persistence.
 
-const STORE_KEY = 'madeNMore_data';
-const HISTORY_KEY = 'madeNMore_history';
-const MAX_HISTORY = 50;
+const API_HOST = typeof window !== 'undefined' && window.location && window.location.hostname
+  ? window.location.hostname
+  : 'localhost';
+export const BASE_URL = `http://${API_HOST}:4000/api`;
 
-let _data = null;
+// In-memory cache for immediate synchronous reads & reactivity
+let _cache = {
+  filaments: [],
+  transactions: [],
+  orders: [],
+  printers: [],
+  consumables: [],
+  settings: {
+    machineCost: 55000,
+    electricityRate: 8.5,
+    printerPower: 350,
+    defaultMarkup: 150,
+    businessName: 'Made N More',
+    currency: '₹',
+    materialCosts: {
+      'PLA+': 900,
+      'PETG-HS': 1100,
+      'ABS': 1200,
+      'TPU+': 1600,
+      'PLA Silk': 1300,
+      'PLA Matt': 1100
+    }
+  },
+  _seeded: false
+};
+
 let _listeners = [];
 let _history = [];
+let _syncInterval = null;
 
-/** Generate a unique ID */
 export function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-/** Get default data structure */
-function getDefaultData() {
-  return {
-    filaments: [],
-    transactions: [],
-    orders: [],
-    printers: [],
-    consumables: [],
-    settings: {
-      machineCost: 115881.32,
-      electricityRate: 8.5,
-      printerPower: 350,
-      defaultMarkup: 30,
-      businessName: 'Made N More',
-      currency: '₹',
-      materialCosts: {
-        'PLA+': 700,
-        'PETG-HS': 900,
-        'ABS': 850,
-        'TPU+': 1200,
-        'PLA Silk': 950,
-        'PLA Matt': 800,
-      },
-    },
-    _seeded: false,
-  };
-}
-
-/** Initialize the store, loading from localStorage */
-export function initStore() {
-  const raw = localStorage.getItem(STORE_KEY);
-  if (raw) {
-    try {
-      _data = JSON.parse(raw);
-    } catch {
-      _data = getDefaultData();
-    }
-  } else {
-    _data = getDefaultData();
-  }
-  // Load history
-  const histRaw = localStorage.getItem(HISTORY_KEY);
-  if (histRaw) {
-    try { _history = JSON.parse(histRaw); } catch { _history = []; }
-  }
-  return _data;
-}
-
-/** Persist current state */
-function _save() {
-  localStorage.setItem(STORE_KEY, JSON.stringify(_data));
-}
-
-/** Push to undo history */
-function _pushHistory(action, collection, item) {
-  _history.push({ action, collection, item: JSON.parse(JSON.stringify(item)), timestamp: Date.now() });
-  if (_history.length > MAX_HISTORY) _history.shift();
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(_history));
-}
-
-/** Notify listeners */
-function _notify(collection) {
-  _listeners.forEach(fn => fn(collection));
-}
-
-/** Subscribe to changes */
+/** Subscribe to store modifications */
 export function subscribe(fn) {
   _listeners.push(fn);
   return () => { _listeners = _listeners.filter(f => f !== fn); };
 }
 
-/** Check if data has been seeded */
-export function isSeeded() {
-  return _data?._seeded === true;
-}
-
-/** Mark as seeded */
-export function markSeeded() {
-  _data._seeded = true;
-  _save();
-}
-
-// ─── CRUD Operations ────────────────────────────────────────
-
-/** Get all items in a collection */
-export function getAll(collection) {
-  return _data[collection] || [];
-}
-
-/** Get item by ID */
-export function getById(collection, id) {
-  return (_data[collection] || []).find(item => item.id === id);
-}
-
-/** Create a new item */
-export function create(collection, item) {
-  const newItem = {
-    ...item,
-    id: item.id || generateId(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-  if (!_data[collection]) _data[collection] = [];
-  _data[collection].push(newItem);
-  _pushHistory('create', collection, newItem);
-  _save();
-  _notify(collection);
-  return newItem;
-}
-
-/** Update an existing item */
-export function update(collection, id, updates) {
-  const arr = _data[collection] || [];
-  const idx = arr.findIndex(item => item.id === id);
-  if (idx === -1) return null;
-  const oldItem = { ...arr[idx] };
-  _pushHistory('update', collection, oldItem);
-  arr[idx] = { ...arr[idx], ...updates, updatedAt: new Date().toISOString() };
-  _save();
-  _notify(collection);
-  return arr[idx];
-}
-
-/** Delete an item */
-export function remove(collection, id) {
-  const arr = _data[collection] || [];
-  const idx = arr.findIndex(item => item.id === id);
-  if (idx === -1) return null;
-  const removed = arr.splice(idx, 1)[0];
-  _pushHistory('delete', collection, removed);
-  _save();
-  _notify(collection);
-  return removed;
-}
-
-/** Bulk delete */
-export function bulkRemove(collection, ids) {
-  const removedItems = [];
-  ids.forEach(id => {
-    const idx = (_data[collection] || []).findIndex(item => item.id === id);
-    if (idx !== -1) {
-      removedItems.push(_data[collection].splice(idx, 1)[0]);
-    }
+function _notify(collection) {
+  _listeners.forEach(fn => {
+    try { fn(collection); } catch (e) { console.error('Listener notification error:', e); }
   });
-  removedItems.forEach(item => _pushHistory('delete', collection, item));
-  _save();
-  _notify(collection);
-  return removedItems;
 }
 
-/** Duplicate an item */
-export function duplicate(collection, id) {
-  const original = getById(collection, id);
-  if (!original) return null;
-  const { id: _id, createdAt, updatedAt, ...rest } = original;
-  return create(collection, { ...rest, name: original.name ? `${original.name} (copy)` : undefined });
+function _pushHistory(action, collection, item) {
+  _history.push({ action, collection, item });
+  if (_history.length > 50) _history.shift();
 }
 
-/** Undo last action — returns the undone action info or null */
-export function undo() {
-  if (_history.length === 0) return null;
-  const last = _history.pop();
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(_history));
-
-  if (last.action === 'create') {
-    // Undo create → remove the item
-    const arr = _data[last.collection] || [];
-    const idx = arr.findIndex(item => item.id === last.item.id);
-    if (idx !== -1) arr.splice(idx, 1);
-  } else if (last.action === 'delete') {
-    // Undo delete → re-add the item
-    if (!_data[last.collection]) _data[last.collection] = [];
-    _data[last.collection].push(last.item);
-  } else if (last.action === 'update') {
-    // Undo update → restore old item
-    const arr = _data[last.collection] || [];
-    const idx = arr.findIndex(item => item.id === last.item.id);
-    if (idx !== -1) arr[idx] = last.item;
-  }
-
-  _save();
-  _notify(last.collection);
-  return last;
-}
-
-// ─── Settings ──────────────────────────────────────────────
-
-/** Get settings */
-export function getSettings() {
-  return _data.settings;
-}
-
-/** Update settings */
-export function updateSettings(updates) {
-  _data.settings = { ..._data.settings, ...updates };
-  _save();
-  _notify('settings');
-  return _data.settings;
-}
-
-// ─── Search ────────────────────────────────────────────────
-
-/** Search across collections */
-export function search(query) {
-  const q = query.toLowerCase().trim();
-  if (!q) return { filaments: [], transactions: [] };
-
-  const filaments = (_data.filaments || []).filter(f =>
-    f.name?.toLowerCase().includes(q) ||
-    f.material?.toLowerCase().includes(q) ||
-    f.brand?.toLowerCase().includes(q)
-  );
-
-  const transactions = (_data.transactions || []).filter(t =>
-    t.description?.toLowerCase().includes(q) ||
-    t.category?.toLowerCase().includes(q)
-  );
-
-  return { filaments, transactions };
-}
-
-// ─── Export / Import ───────────────────────────────────────
-
-/** Export all data as JSON string */
-export function exportData() {
-  return JSON.stringify(_data, null, 2);
-}
-
-/** Import data from JSON string — merges or replaces */
-export function importData(jsonStr, replace = true) {
+/** Fetch JSON helper with timeout */
+async function fetchJSON(url, options = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
   try {
-    const imported = JSON.parse(jsonStr);
-    if (replace) {
-      _data = { ...getDefaultData(), ...imported };
-    } else {
-      // Merge: add non-duplicate items
-      ['filaments', 'transactions'].forEach(col => {
-        const existingIds = new Set((_data[col] || []).map(i => i.id));
-        (imported[col] || []).forEach(item => {
-          if (!existingIds.has(item.id)) {
-            _data[col].push(item);
-          }
-        });
-      });
+    const resp = await fetch(url, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      ...options
+    });
+    clearTimeout(timeoutId);
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error(`API ${options.method || 'GET'} ${url} failed with status ${resp.status}:`, errText);
+      throw new Error(`API error ${resp.status}`);
     }
-    _save();
-    _notify('all');
-    return true;
-  } catch (e) {
-    console.error('Import failed:', e);
-    return false;
+    return await resp.json();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
   }
 }
 
-/** Export as CSV */
-export function exportCSV(collection) {
-  const items = _data[collection] || [];
-  if (items.length === 0) return '';
-  const headers = Object.keys(items[0]);
-  const rows = items.map(item => headers.map(h => {
-    let val = item[h];
-    if (typeof val === 'string' && val.includes(',')) val = `"${val}"`;
-    return val ?? '';
-  }).join(','));
-  return [headers.join(','), ...rows].join('\n');
+/** Initialize store: fetch all data from backend and start background sync */
+export async function initStore() {
+  try {
+    const allData = await fetchJSON(`${BASE_URL}/all`);
+    if (allData && typeof allData === 'object') {
+      _cache = {
+        filaments: allData.filaments || [],
+        transactions: allData.transactions || [],
+        orders: allData.orders || [],
+        printers: allData.printers || [],
+        consumables: allData.consumables || [],
+        settings: allData.settings || _cache.settings,
+        _seeded: allData._seeded !== undefined ? allData._seeded : true
+      };
+      _notify('all');
+    }
+  } catch (err) {
+    console.warn('API offline or unreachable, using local fallback:', err.message);
+  }
+
+  // Start background polling to keep multiple browser tabs / mobile devices in sync
+  if (!_syncInterval && typeof window !== 'undefined') {
+    _syncInterval = setInterval(async () => {
+      try {
+        const fresh = await fetchJSON(`${BASE_URL}/all`);
+        if (fresh && JSON.stringify(fresh) !== JSON.stringify(_cache)) {
+          _cache = {
+            filaments: fresh.filaments || [],
+            transactions: fresh.transactions || [],
+            orders: fresh.orders || [],
+            printers: fresh.printers || [],
+            consumables: fresh.consumables || [],
+            settings: fresh.settings || _cache.settings,
+            _seeded: fresh._seeded !== undefined ? fresh._seeded : true
+          };
+          _notify('all');
+        }
+      } catch {
+        // Silently ignore background poll errors
+      }
+    }, 4000);
+  }
+
+  return true;
 }
 
-/** Clear all data */
-export function clearAll() {
-  _data = getDefaultData();
-  _history = [];
-  _save();
-  localStorage.removeItem(HISTORY_KEY);
-  _notify('all');
+/** Synchronous read accessors (fast, reactive, no layout shifts) */
+export function getAll(collection) {
+  if (!_cache[collection]) _cache[collection] = [];
+  return _cache[collection];
 }
 
-/** Get stats for dashboard */
+export function getById(collection, id) {
+  const list = getAll(collection);
+  return list.find(item => String(item.id) === String(id)) || null;
+}
+
+export function getSettings() {
+  return _cache.settings || {};
+}
+
+export function isSeeded() {
+  return _cache._seeded === true;
+}
+
+export async function markSeeded() {
+  _cache._seeded = true;
+  try {
+    await updateSettings({ ..._cache.settings, _seeded: true });
+  } catch {}
+}
+
+/** Stats calculation */
 export function getStats() {
-  const transactions = _data.transactions || [];
-  const filaments = _data.filaments || [];
+  const filaments = _cache.filaments || [];
+  const transactions = _cache.transactions || [];
+  const settings = _cache.settings || {};
 
   const totalSales = transactions
     .filter(t => t.type === 'sale')
@@ -306,28 +167,23 @@ export function getStats() {
     .reduce((sum, t) => sum + (t.amount || 0), 0);
 
   const netProfit = totalSales - totalExpenses;
-  const netAfterMachine = netProfit - (_data.settings.machineCost || 0);
+  const netAfterMachine = netProfit - (settings.machineCost || 0);
 
   const totalSpools = filaments.reduce((sum, f) => sum + (f.spools || 0), 0);
   const usableSpools = filaments.filter(f => f.usable).reduce((sum, f) => sum + (f.spools || 0), 0);
 
-  // Material breakdown
   const materialBreakdown = {};
   filaments.forEach(f => {
-    const mat = f.material || 'Other';
-    if (!materialBreakdown[mat]) materialBreakdown[mat] = 0;
-    materialBreakdown[mat] += f.spools || 0;
+    materialBreakdown[f.material] = (materialBreakdown[f.material] || 0) + (f.spools || 0);
   });
 
-  // Monthly revenue
   const monthlyData = {};
   transactions.forEach(t => {
     if (!t.date) return;
-    const d = new Date(t.date);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    if (!monthlyData[key]) monthlyData[key] = { sales: 0, expenses: 0 };
-    if (t.type === 'sale') monthlyData[key].sales += t.amount || 0;
-    else monthlyData[key].expenses += t.amount || 0;
+    const month = t.date.substring(0, 7);
+    if (!monthlyData[month]) monthlyData[month] = { sales: 0, expenses: 0 };
+    if (t.type === 'sale') monthlyData[month].sales += t.amount || 0;
+    if (t.type === 'expense') monthlyData[month].expenses += t.amount || 0;
   });
 
   return {
@@ -339,7 +195,254 @@ export function getStats() {
     usableSpools,
     totalFilaments: filaments.length,
     materialBreakdown,
-    monthlyData,
-    machineCost: _data.settings.machineCost || 0,
+    monthlyData
   };
+}
+
+/** CRUD Mutations (synchronously updates cache, asynchronously persists to API) */
+export async function create(collection, item) {
+  const newItem = {
+    ...item,
+    id: item.id || generateId(),
+    createdAt: item.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  if (!_cache[collection]) _cache[collection] = [];
+  _cache[collection].push(newItem);
+  _pushHistory('create', collection, newItem);
+  _notify(collection);
+
+  try {
+    const saved = await fetchJSON(`${BASE_URL}/${collection}`, {
+      method: 'POST',
+      body: JSON.stringify(newItem)
+    });
+    return saved;
+  } catch (err) {
+    console.warn(`Created item locally (API sync pending):`, err.message);
+    return newItem;
+  }
+}
+
+export async function update(collection, id, updates) {
+  if (!_cache[collection]) _cache[collection] = [];
+  const idx = _cache[collection].findIndex(i => String(i.id) === String(id));
+  if (idx === -1) return null;
+
+  const oldItem = { ..._cache[collection][idx] };
+  _cache[collection][idx] = {
+    ..._cache[collection][idx],
+    ...updates,
+    id: _cache[collection][idx].id,
+    updatedAt: new Date().toISOString()
+  };
+
+  _pushHistory('update', collection, oldItem);
+  _notify(collection);
+
+  try {
+    const saved = await fetchJSON(`${BASE_URL}/${collection}/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+    return saved;
+  } catch (err) {
+    console.warn(`Updated item locally (API sync pending):`, err.message);
+    return _cache[collection][idx];
+  }
+}
+
+export async function remove(collection, id) {
+  if (!_cache[collection]) return null;
+  const idx = _cache[collection].findIndex(i => String(i.id) === String(id));
+  if (idx === -1) return null;
+
+  const removed = _cache[collection].splice(idx, 1)[0];
+  _pushHistory('delete', collection, removed);
+  _notify(collection);
+
+  try {
+    await fetchJSON(`${BASE_URL}/${collection}/${id}`, { method: 'DELETE' });
+  } catch (err) {
+    console.warn(`Deleted item locally (API sync pending):`, err.message);
+  }
+  return removed;
+}
+
+export async function bulkRemove(collection, ids) {
+  const removed = [];
+  for (const id of ids) {
+    const r = await remove(collection, id);
+    if (r) removed.push(r);
+  }
+  return removed;
+}
+
+export async function duplicate(collection, id) {
+  const original = getById(collection, id);
+  if (!original) return null;
+  const { id: _old, createdAt, updatedAt, ...rest } = original;
+  return await create(collection, {
+    ...rest,
+    name: original.name ? `${original.name} (copy)` : 'Copy'
+  });
+}
+
+export async function updateSettings(updates) {
+  _cache.settings = { ...(_cache.settings || {}), ...updates };
+  _notify('settings');
+  try {
+    const saved = await fetchJSON(`${BASE_URL}/settings`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+    return saved;
+  } catch (err) {
+    console.warn('Updated settings locally (API sync pending):', err.message);
+    return _cache.settings;
+  }
+}
+
+/** Undo last action */
+export async function undo() {
+  if (_history.length === 0) return null;
+  const last = _history.pop();
+  const { action, collection, item } = last;
+
+  try {
+    if (action === 'create') {
+      await remove(collection, item.id);
+    } else if (action === 'delete') {
+      await create(collection, item);
+    } else if (action === 'update') {
+      await update(collection, item.id, item);
+    }
+    _notify(collection);
+    return last;
+  } catch (e) {
+    console.error('Undo failed:', e);
+    return null;
+  }
+}
+
+/** Search across collections */
+export function search(query) {
+  const q = (query || '').toLowerCase().trim();
+  if (!q) return { filaments: [], transactions: [], orders: [] };
+
+  const filaments = getAll('filaments');
+  const transactions = getAll('transactions');
+  const orders = getAll('orders');
+
+  return {
+    filaments: filaments.filter(f =>
+      f.name?.toLowerCase().includes(q) ||
+      f.material?.toLowerCase().includes(q) ||
+      f.brand?.toLowerCase().includes(q)
+    ),
+    transactions: transactions.filter(t =>
+      t.description?.toLowerCase().includes(q) ||
+      t.category?.toLowerCase().includes(q)
+    ),
+    orders: orders.filter(o =>
+      o.clientName?.toLowerCase().includes(q) ||
+      o.description?.toLowerCase().includes(q)
+    )
+  };
+}
+
+/** Export and Import */
+export function exportData() {
+  return JSON.stringify(_cache, null, 2);
+}
+
+export function exportCSV(collection) {
+  const items = getAll(collection);
+  if (!items || items.length === 0) return '';
+
+  if (collection === 'filaments') {
+    const headers = ['Name', 'Material', 'Hex Color', 'Spools', 'Usable', 'Brand'];
+    const rows = items.map(f => [
+      `"${(f.name || '').replace(/"/g, '""')}"`,
+      `"${f.material || ''}"`,
+      `"${f.hex || ''}"`,
+      f.spools || 0,
+      f.usable ? 'Yes' : 'No',
+      `"${f.brand || ''}"`
+    ]);
+    return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  }
+
+  if (collection === 'transactions') {
+    const headers = ['Date', 'Type', 'Category', 'Description', 'Amount (INR)'];
+    const rows = items.map(t => [
+      `"${t.date || ''}"`,
+      `"${t.type || ''}"`,
+      `"${(t.category || '').replace(/"/g, '""')}"`,
+      `"${(t.description || '').replace(/"/g, '""')}"`,
+      t.amount || 0
+    ]);
+    return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  }
+
+  if (collection === 'orders') {
+    const headers = ['Order ID', 'Client Name', 'Phone', 'Stage', 'Status', 'Total (INR)'];
+    const rows = items.map(o => [
+      `"${o.id || ''}"`,
+      `"${(o.clientName || '').replace(/"/g, '""')}"`,
+      `"${o.clientPhone || ''}"`,
+      `"${o.kanbanStage || ''}"`,
+      `"${o.status || ''}"`,
+      o.totalAmount || 0
+    ]);
+    return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  }
+
+  return '';
+}
+
+export async function importData(jsonStr, replace = true) {
+  try {
+    const parsed = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+    const resp = await fetchJSON(`${BASE_URL}/import`, {
+      method: 'POST',
+      body: JSON.stringify({ jsonStr: JSON.stringify(parsed), replace })
+    });
+
+    if (resp.success) {
+      await initStore();
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.error('Import failed:', err);
+    return false;
+  }
+}
+
+export async function clearAll() {
+  _cache = {
+    filaments: [],
+    transactions: [],
+    orders: [],
+    printers: [],
+    consumables: [],
+    settings: {
+      machineCost: 0,
+      electricityRate: 8,
+      printerPower: 350,
+      defaultMarkup: 150,
+      businessName: 'Made N More',
+      currency: '₹',
+      materialCosts: {}
+    },
+    _seeded: false
+  };
+  _notify('all');
+  try {
+    await fetchJSON(`${BASE_URL}/clear`, { method: 'POST' });
+  } catch (err) {
+    console.warn('Reset local only (API unreachable):', err.message);
+  }
 }

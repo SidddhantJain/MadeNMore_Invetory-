@@ -30,7 +30,9 @@ const ROUTES = [
 ];
 
 function openLANServerModal() {
-  const lanUrl = 'http://192.168.0.143:3000';
+  const host = (window.location && window.location.hostname) || '192.168.0.143';
+  const port = (window.location && window.location.port) || '3000';
+  const lanUrl = `http://${host}:${port}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(lanUrl)}`;
 
   showModal({
@@ -44,7 +46,7 @@ function openLANServerModal() {
           Scan with your Phone / Tablet Camera
         </div>
         <p style="font-size:0.85rem;color:var(--text-secondary);max-width:400px;margin:0 auto 16px;">
-          This laptop is currently running as your home/workshop server on <strong>0.0.0.0:3000</strong>. Connect any device to your home Wi-Fi and open the link below:
+          This system is running as your workshop server. Connect any device to your Wi-Fi and open:
         </p>
         <div style="background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;max-width:400px;margin:0 auto;">
           <a href="${lanUrl}" target="_blank" style="font-size:0.95rem;color:#4ade80;font-family:monospace;font-weight:700;text-decoration:none;">
@@ -114,7 +116,7 @@ function renderSidebar() {
     <div class="sidebar-footer" style="padding:14px 16px;border-top:1px solid var(--border);">
       <div class="lan-server-badge" id="btn-lan-portal" style="margin-bottom:10px;width:100%;justify-content:center;" title="Click to view Phone/Tablet QR Code">
         <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;"></span>
-        <span>Wi-Fi: 192.168.0.143:3000</span>
+        <span>LAN: ${(window.location && window.location.hostname) || '192.168.0.143'}:${(window.location && window.location.port) || '3000'}</span>
       </div>
       <div class="sidebar-footer-info">
         Made N More v1.0<br/>
@@ -267,11 +269,12 @@ function initKeyboardShortcuts() {
     // Ctrl+Z / Cmd+Z — Undo (only when not in an input)
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !isInputFocused()) {
       e.preventDefault();
-      const undone = undo();
-      if (undone) {
-        showToast(`Undone: ${undone.action} in ${undone.collection}`, 'info');
-        navigate(); // Re-render
-      }
+      undo().then(undone => {
+        if (undone) {
+          showToast(`Undone: ${undone.action} in ${undone.collection}`, 'info');
+          navigate(); // Re-render
+        }
+      });
     }
 
     // Quick nav: 1-5
@@ -291,12 +294,9 @@ function isInputFocused() {
 }
 
 // ─── Initialize ─────────────────────────────────────────────
-function init() {
-  // Initialize data store
-  initStore();
-
-  // Seed on first run
-  seedDatabase();
+async function init() {
+  // Initialize data store from REST API
+  await initStore();
 
   // Render sidebar
   renderSidebar();

@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  madenmore:
+    build: .
+    container_name: madenmore-farm-server
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - NODE_ENV=production
+    volumes:
+      - madenmore-data:/app/src/data
+
+volumes:
+  madenmore-data:
+    driver: local

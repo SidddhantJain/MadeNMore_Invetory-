@@ -2,13 +2,21 @@
   "name": "made-n-more",
   "private": true,
   "version": "1.0.0",
+  "type": "module",
   "description": "Made N More — 3D Printing Business Management System",
   "scripts": {
-    "dev": "vite",
+    "start": "concurrently \"node server/api.js\" \"vite --host 0.0.0.0 --port 3000\"",
+    "server": "node server/api.js",
+    "dev": "vite --host 0.0.0.0 --port 3000",
     "build": "vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
     "vite": "^6.0.0"
+  },
+  "dependencies": {
+    "concurrently": "^10.0.5",
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
   }
 }
