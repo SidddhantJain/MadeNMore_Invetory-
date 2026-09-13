@@ -417,28 +417,48 @@ async function syncPhysicalPrinters(container, showFeedback = true) {
 
   for (const printer of printers) {
     if (printer.iotHost) {
-      const tel = await fetchPrinterTelemetry(printer.iotHost, printer.iotPort || 80);
-      if (tel.online) {
-        update('printers', printer.id, {
-          currentNozzleTemp: tel.currentNozzleTemp,
-          targetNozzleTemp: tel.targetNozzleTemp,
-          currentBedTemp: tel.currentBedTemp,
-          targetBedTemp: tel.targetBedTemp,
-          chamberTemp: tel.chamberTemp,
-          status: tel.status,
-          currentJob: tel.currentJob || printer.currentJob,
-          jobProgress: tel.jobProgress || printer.jobProgress,
-          elapsedMinutes: tel.elapsedMinutes || printer.elapsedMinutes,
-          totalMinutes: tel.totalMinutes || printer.totalMinutes,
-          isLiveOnline: true,
-        });
-        syncCount++;
+      try {
+        const tel = await fetchPrinterTelemetry(printer.iotHost, printer.iotPort || 80);
+        if (tel.online) {
+          update('printers', printer.id, {
+            currentNozzleTemp: tel.currentNozzleTemp,
+            targetNozzleTemp: tel.targetNozzleTemp,
+            currentBedTemp: tel.currentBedTemp,
+            targetBedTemp: tel.targetBedTemp,
+            chamberTemp: tel.chamberTemp,
+            status: tel.status,
+            currentJob: tel.currentJob || printer.currentJob,
+            jobProgress: tel.jobProgress !== undefined ? tel.jobProgress : printer.jobProgress,
+            elapsedMinutes: tel.elapsedMinutes !== undefined ? tel.elapsedMinutes : printer.elapsedMinutes,
+            totalMinutes: tel.totalMinutes || printer.totalMinutes,
+            isLiveOnline: true,
+          });
+
+          // Live DOM in-place update
+          const nozzleEl = document.getElementById(`temp-nozzle-${printer.id}`);
+          const bedEl = document.getElementById(`temp-bed-${printer.id}`);
+          const progValEl = document.getElementById(`prog-val-${printer.id}`);
+          const progBarEl = document.getElementById(`prog-bar-${printer.id}`);
+          const elapsedEl = document.getElementById(`prog-elapsed-${printer.id}`);
+
+          if (nozzleEl) nozzleEl.textContent = tel.currentNozzleTemp;
+          if (bedEl) bedEl.textContent = tel.currentBedTemp;
+          if (progValEl && tel.jobProgress !== undefined) progValEl.textContent = `${tel.jobProgress}%`;
+          if (progBarEl && tel.jobProgress !== undefined) progBarEl.style.width = `${tel.jobProgress}%`;
+          if (elapsedEl && tel.elapsedMinutes !== undefined) {
+            elapsedEl.textContent = `${Math.floor(tel.elapsedMinutes / 60)}h ${tel.elapsedMinutes % 60}m`;
+          }
+
+          syncCount++;
+        }
+      } catch (err) {
+        console.warn(`Sync failed for ${printer.name}:`, err.message);
       }
     }
   }
 
   if (syncCount > 0) {
-    if (showFeedback) showToast(`📡 Synced live data from physical printer (${syncCount} machines active)!`, 'success');
+    if (showFeedback) showToast(`📡 Live telemetry synced from Snapmaker U1 (${syncCount} machines active)!`, 'success');
     render(container);
   } else if (showFeedback) {
     showToast('⚠️ Could not reach physical printer on LAN. Check IP address or Wi-Fi.', 'warning');

@@ -1,55 +1,99 @@
 /**
  * Made N More — Physical 3D Printer LAN Service (Moonraker / Klipper / Snapmaker)
- * Communicates directly with physical printers over local Wi-Fi/LAN
+ * Communicates directly with physical printers over local Wi-Fi/LAN with automatic server proxy fallback
  */
+
+const API_HOST = typeof window !== 'undefined' && window.location && window.location.hostname
+  ? window.location.hostname
+  : 'localhost';
+const API_BASE = `http://${API_HOST}:4000/api`;
+
+/** Helper to parse time estimates from sliced gcode filename, e.g. "FlowerPot_PLA_3h8m.gcode" */
+function parseTimeFromFilename(filename) {
+  if (!filename) return null;
+  const match = filename.match(/(\d+)h(?:(\d+)m)?/i) || filename.match(/(\d+)m/i);
+  if (!match) return null;
+
+  if (match[0].includes('h')) {
+    const hours = parseInt(match[1], 10) || 0;
+    const mins = parseInt(match[2], 10) || 0;
+    return hours * 60 + mins;
+  }
+  return parseInt(match[1], 10) || 0;
+}
 
 export async function fetchPrinterTelemetry(ip = '192.168.0.144', port = 80) {
   const host = port == 80 ? ip : `${ip}:${port}`;
-  const url = `http://${host}/printer/objects/query?extruder=temperature,target&heater_bed=temperature,target&temperature_sensor%20cavity=temperature&print_stats=state,filename,print_duration,total_duration&virtual_sdcard=progress`;
+  const directUrl = `http://${host}/printer/objects/query?extruder&heater_bed&print_stats&virtual_sdcard`;
+  const proxyUrl = `${API_BASE}/printer/telemetry?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}`;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 2500);
+  let data = null;
 
+  // 1. Try direct fetch with short timeout
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch(directUrl, { signal: controller.signal });
     clearTimeout(timeoutId);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const status = data.result?.status || {};
-
-    const ext = status.extruder || {};
-    const bed = status.heater_bed || {};
-    const stats = status.print_stats || {};
-    const vsd = status.virtual_sdcard || {};
-    const cavity = status['temperature_sensor cavity'] || {};
-
-    let uiState = 'idle';
-    if (stats.state === 'printing') uiState = 'printing';
-    else if (stats.state === 'paused') uiState = 'paused';
-    else if (ext.target > 50 || bed.target > 40) uiState = 'heating';
-
-    return {
-      online: true,
-      currentNozzleTemp: Math.round(ext.temperature || 0),
-      targetNozzleTemp: Math.round(ext.target || 0),
-      currentBedTemp: Math.round(bed.temperature || 0),
-      targetBedTemp: Math.round(bed.target || 0),
-      chamberTemp: cavity.temperature ? Math.round(cavity.temperature) : null,
-      status: uiState,
-      klippyState: stats.state || 'standby',
-      currentJob: stats.filename ? stats.filename.replace(/\.(gcode|3mf)$/i, '') : null,
-      jobProgress: Math.round((vsd.progress || 0) * 100),
-      elapsedMinutes: Math.round((stats.print_duration || 0) / 60),
-      totalMinutes: Math.round((stats.total_duration || 0) / 60),
-      eventtime: data.result?.eventtime,
-    };
-  } catch (err) {
-    clearTimeout(timeoutId);
-    return {
-      online: false,
-      error: err.name === 'AbortError' ? 'Timeout reaching printer IP' : err.message,
-    };
+    if (res.ok) {
+      data = await res.json();
+    }
+  } catch {
+    // Direct fetch failed (likely CORS or LAN routing), proceed to proxy
   }
+
+  // 2. Fallback to API backend proxy
+  if (!data) {
+    try {
+      const res = await fetch(proxyUrl);
+      if (res.ok) {
+        data = await res.json();
+      }
+    } catch (proxyErr) {
+      return { online: false, error: proxyErr.message };
+    }
+  }
+
+  if (!data || !data.result) {
+    return { online: false, error: 'No response from printer' };
+  }
+
+  const status = data.result.status || {};
+  const ext = status.extruder || {};
+  const bed = status.heater_bed || {};
+  const stats = status.print_stats || {};
+  const vsd = status.virtual_sdcard || {};
+
+  let uiState = 'idle';
+  if (stats.state === 'printing') uiState = 'printing';
+  else if (stats.state === 'paused') uiState = 'paused';
+  else if ((ext.target && ext.target > 50) || (bed.target && bed.target > 40)) uiState = 'heating';
+
+  const rawFilename = stats.filename || '';
+  const parsedMinutes = parseTimeFromFilename(rawFilename);
+  const totalMinutes = parsedMinutes || Math.round((stats.total_duration || 0) / 60) || 0;
+  const elapsedMinutes = Math.round((stats.print_duration || 0) / 60);
+
+  const cleanJobName = rawFilename
+    ? rawFilename.replace(/\.(gcode|3mf)$/i, '').replace(/_/g, ' ').replace(/\+/g, ' ')
+    : null;
+
+  return {
+    online: true,
+    currentNozzleTemp: Math.round(ext.temperature || 0),
+    targetNozzleTemp: Math.round(ext.target || 0),
+    currentBedTemp: Math.round(bed.temperature || 0),
+    targetBedTemp: Math.round(bed.target || 0),
+    chamberTemp: null,
+    status: uiState,
+    klippyState: stats.state || 'standby',
+    currentJob: cleanJobName,
+    rawFilename,
+    jobProgress: Math.round((vsd.progress || 0) * 100),
+    elapsedMinutes,
+    totalMinutes: Math.max(totalMinutes, elapsedMinutes),
+    eventtime: data.result.eventtime,
+  };
 }
 
 /**
@@ -57,29 +101,42 @@ export async function fetchPrinterTelemetry(ip = '192.168.0.144', port = 80) {
  */
 export async function fetchLatestSnapshot(ip = '192.168.0.144', port = 80) {
   const host = port == 80 ? ip : `${ip}:${port}`;
-  const url = `http://${host}/server/files/list?root=camera`;
+  const directUrl = `http://${host}/server/files/list?root=camera`;
+  const proxyUrl = `${API_BASE}/printer/files?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}&root=camera`;
+
+  let files = [];
 
   try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const files = data.result || [];
-    const jpgs = files
-      .filter(f => f.path.toLowerCase().endsWith('.jpg'))
-      .sort((a, b) => (b.modified || 0) - (a.modified || 0));
-
-    if (jpgs.length > 0) {
-      return {
-        url: `http://${host}/server/files/camera/${encodeURIComponent(jpgs[0].path)}`,
-        filename: jpgs[0].path,
-        modified: new Date((jpgs[0].modified || 0) * 1000).toLocaleString(),
-        size: Math.round(jpgs[0].size / 1024) + ' KB',
-      };
+    const res = await fetch(directUrl);
+    if (res.ok) {
+      const d = await res.json();
+      files = d.result || [];
     }
-    return null;
-  } catch (err) {
-    return null;
+  } catch {}
+
+  if (files.length === 0) {
+    try {
+      const res = await fetch(proxyUrl);
+      if (res.ok) {
+        const d = await res.json();
+        files = d.result || [];
+      }
+    } catch {}
   }
+
+  const jpgs = files
+    .filter(f => f.path && (f.path.toLowerCase().endsWith('.jpg') || f.path.toLowerCase().endsWith('.png')))
+    .sort((a, b) => (b.modified || 0) - (a.modified || 0));
+
+  if (jpgs.length > 0) {
+    return {
+      url: `http://${host}/server/files/camera/${encodeURIComponent(jpgs[0].path)}`,
+      filename: jpgs[0].path,
+      modified: new Date((jpgs[0].modified || 0) * 1000).toLocaleString(),
+      size: Math.round((jpgs[0].size || 0) / 1024) + ' KB',
+    };
+  }
+  return null;
 }
 
 /**
@@ -87,73 +144,76 @@ export async function fetchLatestSnapshot(ip = '192.168.0.144', port = 80) {
  */
 export async function fetchAllCameraMedia(ip = '192.168.0.144', port = 80) {
   const host = port == 80 ? ip : `${ip}:${port}`;
-  const url = `http://${host}/server/files/list?root=camera`;
+  const directUrl = `http://${host}/server/files/list?root=camera`;
+  const proxyUrl = `${API_BASE}/printer/files?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}&root=camera`;
+
+  let files = [];
 
   try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const files = data.result || [];
+    const res = await fetch(directUrl);
+    if (res.ok) {
+      const d = await res.json();
+      files = d.result || [];
+    }
+  } catch {}
 
-    const formatBytes = (bytes) => {
-      if (bytes < 1024) return bytes + ' B';
-      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    };
-
-    const videos = files
-      .filter(f => f.path.toLowerCase().endsWith('.mp4'))
-      .sort((a, b) => (b.modified || 0) - (a.modified || 0))
-      .map(f => ({
-        filename: f.path,
-        url: `http://${host}/server/files/camera/${encodeURIComponent(f.path)}`,
-        sizeBytes: f.size,
-        sizeFormatted: formatBytes(f.size),
-        dateFormatted: new Date((f.modified || 0) * 1000).toLocaleString(),
-        rawModified: f.modified,
-      }));
-
-    const snapshots = files
-      .filter(f => f.path.toLowerCase().endsWith('.jpg') || f.path.toLowerCase().endsWith('.png'))
-      .sort((a, b) => (b.modified || 0) - (a.modified || 0))
-      .map(f => ({
-        filename: f.path,
-        url: `http://${host}/server/files/camera/${encodeURIComponent(f.path)}`,
-        sizeBytes: f.size,
-        sizeFormatted: formatBytes(f.size),
-        dateFormatted: new Date((f.modified || 0) * 1000).toLocaleString(),
-        rawModified: f.modified,
-      }));
-
-    const totalVideoBytes = videos.reduce((s, v) => s + (v.sizeBytes || 0), 0);
-
-    return {
-      success: true,
-      videos,
-      snapshots,
-      totalVideoCount: videos.length,
-      totalSnapshotCount: snapshots.length,
-      totalVideoSizeFormatted: formatBytes(totalVideoBytes),
-    };
-  } catch (err) {
-    return {
-      success: false,
-      error: err.message,
-      videos: [],
-      snapshots: [],
-      totalVideoCount: 0,
-      totalSnapshotCount: 0,
-      totalVideoSizeFormatted: '0 MB',
-    };
+  if (files.length === 0) {
+    try {
+      const res = await fetch(proxyUrl);
+      if (res.ok) {
+        const d = await res.json();
+        files = d.result || [];
+      }
+    } catch {}
   }
+
+  const formatBytes = (bytes) => {
+    if (!bytes || isNaN(bytes)) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const videos = files
+    .filter(f => f.path && f.path.toLowerCase().endsWith('.mp4'))
+    .sort((a, b) => (b.modified || 0) - (a.modified || 0))
+    .map(f => ({
+      filename: f.path,
+      url: `http://${host}/server/files/camera/${encodeURIComponent(f.path)}`,
+      sizeBytes: f.size,
+      sizeFormatted: formatBytes(f.size),
+      dateFormatted: new Date((f.modified || 0) * 1000).toLocaleString(),
+      rawModified: f.modified,
+    }));
+
+  const snapshots = files
+    .filter(f => f.path && (f.path.toLowerCase().endsWith('.jpg') || f.path.toLowerCase().endsWith('.png')))
+    .sort((a, b) => (b.modified || 0) - (a.modified || 0))
+    .map(f => ({
+      filename: f.path,
+      url: `http://${host}/server/files/camera/${encodeURIComponent(f.path)}`,
+      sizeBytes: f.size,
+      sizeFormatted: formatBytes(f.size),
+      dateFormatted: new Date((f.modified || 0) * 1000).toLocaleString(),
+      rawModified: f.modified,
+    }));
+
+  const totalVideoBytes = videos.reduce((s, v) => s + (v.sizeBytes || 0), 0);
+
+  return {
+    success: true,
+    videos,
+    snapshots,
+    totalVideoCount: videos.length,
+    totalSnapshotCount: snapshots.length,
+    totalVideoSizeFormatted: formatBytes(totalVideoBytes),
+  };
 }
 
 /**
- * Auto-discover Snapmaker printer IP on local subnet if IP shifted
+ * Auto-discover Snapmaker printer IP on local subnet
  */
 export async function scanLocalSubnet(baseSubnet = '192.168.0', onProgress = null) {
-  const candidates = [];
-  // Scan likely DHCP range (e.g. 100 to 200, plus known prior IPs)
   const priority = [144, 145, 143, 146, 142, 140, 150, 100, 101, 102, 105, 110, 120];
   const others = [];
   for (let i = 100; i <= 200; i++) {
@@ -162,8 +222,7 @@ export async function scanLocalSubnet(baseSubnet = '192.168.0', onProgress = nul
   const queue = [...priority, ...others];
 
   for (let i = 0; i < queue.length; i++) {
-    const octet = queue[i];
-    const testIp = `${baseSubnet}.${octet}`;
+    const testIp = `${baseSubnet}.${queue[i]}`;
     if (onProgress) onProgress(testIp, i + 1, queue.length);
 
     try {
@@ -183,9 +242,7 @@ export async function scanLocalSubnet(baseSubnet = '192.168.0', onProgress = nul
           };
         }
       }
-    } catch (_) {
-      // Ignore timeouts and continue scanning
-    }
+    } catch {}
   }
 
   return { found: false };

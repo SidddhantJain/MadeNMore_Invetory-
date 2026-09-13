@@ -543,6 +543,41 @@ app.delete('/api/:collection/:id', (req, res) => {
   res.json(removed);
 });
 
+// ----- Moonraker Printer Proxy Endpoints (solves browser CORS restrictions) -----
+app.get('/api/printer/telemetry', async (req, res) => {
+  const ip = req.query.ip || '192.168.0.144';
+  const port = req.query.port || 80;
+  const host = port == 80 ? ip : `${ip}:${port}`;
+  try {
+    const r = await fetch(`http://${host}/printer/objects/query?extruder&heater_bed&print_stats&virtual_sdcard`, {
+      signal: AbortSignal.timeout(3000)
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    res.json(data);
+  } catch (err) {
+    res.status(502).json({ error: err.message, online: false });
+  }
+});
+
+app.get('/api/printer/files', async (req, res) => {
+  const ip = req.query.ip || '192.168.0.144';
+  const port = req.query.port || 80;
+  const root = req.query.root || 'camera';
+  const host = port == 80 ? ip : `${ip}:${port}`;
+  try {
+    const r = await fetch(`http://${host}/server/files/list?root=${encodeURIComponent(root)}`, {
+      signal: AbortSignal.timeout(4000)
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    res.json(data);
+  } catch (err) {
+    res.status(502).json({ error: err.message, result: [] });
+  }
+});
+
+
 // Serve production build if dist exists
 const distPath = path.resolve(__dirname, '../dist');
 if (fs.existsSync(distPath)) {
