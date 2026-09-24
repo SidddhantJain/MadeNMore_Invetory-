@@ -4,13 +4,14 @@
  */
 
 import { getAll, create, update, remove, getById, getAccountBalance, transferBetweenAccounts, reconcileAccountBalance } from '../data/store.js';
-import { formatCurrency, formatDate, escapeHtml, todayStr } from '../utils/helpers.js';
+import { formatCurrency, formatDate, escapeHtml, todayStr, debounce } from '../utils/helpers.js';
 import { ICONS } from '../utils/icons.js';
 import { showModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
 
 let _filterAccount = 'all';
 let _filterTxType = 'all';
+let _ledgerSearch = '';
 
 export function renderAccounts(container) {
   render(container);
@@ -87,9 +88,14 @@ function render(container) {
 
     <!-- Accounts Cards Grid -->
     <div style="margin-bottom:var(--space-xl);" class="animate-in animate-delay-2">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md);">
-        <h2 style="font-size:1.2rem;font-weight:700;">Operating Accounts & Reserves</h2>
-        <span class="text-secondary" style="font-size:0.85rem;">All balances update in real-time with incoming order payments</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md);flex-wrap:wrap;gap:8px;">
+        <div>
+          <h2 style="font-size:1.2rem;font-weight:700;">Operating Accounts & Reserves</h2>
+          <span class="text-secondary" style="font-size:0.85rem;">All balances update in real-time with incoming order payments</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="btn-add-account-sub">
+          <span class="nav-icon">${ICONS.plus}</span> New Account Setup
+        </button>
       </div>
 
       <div class="account-card-grid">
@@ -105,7 +111,12 @@ function render(container) {
           <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px;">Complete audit trail of deposits, order payments, withdrawals, and inter-account transfers</div>
         </div>
         
-        <div style="display:flex;gap:10px;align-items:center;">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <div class="search-bar" style="min-width:240px;max-width:320px;">
+            <span class="search-icon">${ICONS.search}</span>
+            <input type="text" id="ledger-search-input" placeholder="Search activity, client, notes..." value="${escapeHtml(_ledgerSearch)}"/>
+            ${_ledgerSearch ? `<button type="button" class="search-clear-btn" id="ledger-search-clear" title="Clear Search">✕</button>` : ''}
+          </div>
           <select class="form-select form-select-sm" id="ledger-filter-account" style="width:auto;min-width:180px;">
             <option value="all">All Operating Accounts</option>
             ${accounts.map(a => `<option value="${a.id}" ${_filterAccount === a.id ? 'selected' : ''}>${escapeHtml(a.name)}</option>`).join('')}
@@ -204,12 +215,15 @@ function renderAccountCard(acc) {
       ` : ''}
 
       <!-- Action Footer -->
-      <div class="account-box-actions">
+      <div class="account-box-actions" style="display:flex;gap:6px;flex-wrap:wrap;">
         <button class="btn btn-secondary btn-sm flex-1" data-action="quick-deposit" data-id="${acc.id}">
           + Deposit
         </button>
         <button class="btn btn-secondary btn-sm flex-1" data-action="quick-withdraw" data-id="${acc.id}">
           - Withdraw
+        </button>
+        <button class="btn btn-secondary btn-sm" data-action="edit-account" data-id="${acc.id}" title="Edit Account Details & Base Balance">
+          ✏️ Edit
         </button>
         <button class="btn btn-ghost btn-sm" data-action="reconcile" data-id="${acc.id}" title="Reconcile against bank statement">
           ⚖️ Reconcile
@@ -220,6 +234,9 @@ function renderAccountCard(acc) {
 }
 
 function renderLedgerTable(transactions, orders, accounts) {
+  const accountMap = {};
+  accounts.forEach(a => { accountMap[a.id] = a.name; });
+
   // Collect all ledger items chronologically
   let entries = [];
 
@@ -270,16 +287,17 @@ function renderLedgerTable(transactions, orders, accounts) {
         accountId: p.accountId || 'acc1',
         type: 'credit',
         category: 'Order Milestone Payment',
-        desc: `${escapeHtml(o.clientName)} — Order #${o.id} (${p.notes || `${p.percentage}% Milestone`})`,
+        desc: `${o.clientName} — Order #${o.id} (${p.notes || `${p.percentage}% Milestone`})`,
         amount: Math.abs(p.amount || 0),
       });
     });
   });
 
-  // Filter
+  // Filter Account
   if (_filterAccount !== 'all') {
     entries = entries.filter(e => e.accountId === _filterAccount);
   }
+  // Filter Type
   if (_filterTxType === 'inflow') {
     entries = entries.filter(e => e.amount > 0);
   } else if (_filterTxType === 'outflow') {
@@ -288,19 +306,27 @@ function renderLedgerTable(transactions, orders, accounts) {
     entries = entries.filter(e => e.type.startsWith('transfer'));
   }
 
+  // Filter Search
+  if (_ledgerSearch) {
+    const q = _ledgerSearch.toLowerCase();
+    entries = entries.filter(e =>
+      e.desc?.toLowerCase().includes(q) ||
+      e.category?.toLowerCase().includes(q) ||
+      (accountMap[e.accountId] || '').toLowerCase().includes(q) ||
+      Math.abs(e.amount || 0).toString().includes(q)
+    );
+  }
+
   // Sort descending by date
   entries.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
   if (entries.length === 0) {
     return `
       <div class="empty-state">
-        <p>No transactions found for the selected account filters.</p>
+        <p>No transactions found for the selected account filters${_ledgerSearch ? ` matching "${escapeHtml(_ledgerSearch)}"` : ''}.</p>
       </div>
     `;
   }
-
-  const accountMap = {};
-  accounts.forEach(a => { accountMap[a.id] = a.name; });
 
   return `
     <div class="table-container">
@@ -315,7 +341,7 @@ function renderLedgerTable(transactions, orders, accounts) {
           </tr>
         </thead>
         <tbody>
-          ${entries.slice(0, 30).map(e => `
+          ${entries.slice(0, 50).map(e => `
             <tr>
               <td style="font-family:var(--font-mono);font-size:0.8rem;white-space:nowrap;">
                 ${formatDate(e.date)}
@@ -346,10 +372,23 @@ function renderLedgerTable(transactions, orders, accounts) {
 
 function bindEvents(container) {
   // Add Account
-  container.querySelector('#btn-add-account')?.addEventListener('click', () => openAccountModal());
+  container.querySelector('#btn-add-account')?.addEventListener('click', () => openAccountModal(null, container));
+  container.querySelector('#btn-add-account-sub')?.addEventListener('click', () => openAccountModal(null, container));
 
   // Transfer Between Accounts
   container.querySelector('#btn-transfer-funds')?.addEventListener('click', () => openTransferModal(container));
+
+  // Ledger Search Input
+  const searchInput = container.querySelector('#ledger-search-input');
+  searchInput?.addEventListener('input', debounce((e) => {
+    _ledgerSearch = e.target.value.trim();
+    render(container);
+  }, 250));
+
+  container.querySelector('#ledger-search-clear')?.addEventListener('click', () => {
+    _ledgerSearch = '';
+    render(container);
+  });
 
   // Filter Account
   container.querySelector('#ledger-filter-account')?.addEventListener('change', (e) => {
@@ -371,7 +410,7 @@ function bindEvents(container) {
       const id = btn.dataset.id;
 
       if (action === 'edit-account') {
-        openAccountModal(id);
+        openAccountModal(id, container);
       } else if (action === 'delete-account') {
         confirmDeleteAccount(id, container);
       } else if (action === 'quick-deposit') {
@@ -387,7 +426,7 @@ function bindEvents(container) {
 
 // ─── Modals ─────────────────────────────────────────────────
 
-function openAccountModal(editId = null) {
+function openAccountModal(editId = null, container = null) {
   const existing = editId ? getById('accounts', editId) : null;
   const isEdit = !!existing;
 
@@ -488,8 +527,12 @@ function openAccountModal(editId = null) {
       }
 
       closeModal();
-      const contentEl = document.getElementById('content');
-      if (contentEl) render(contentEl);
+      if (container) {
+        render(container);
+      } else {
+        const contentEl = document.getElementById('content');
+        if (contentEl) render(contentEl);
+      }
     }
   });
 }

@@ -145,9 +145,10 @@ function renderFilamentToolbar(items, totalSpools) {
   return `
     <div class="toolbar animate-in animate-delay-1">
       <div class="toolbar-left">
-        <div class="search-bar">
+        <div class="search-bar" style="min-width:240px;max-width:340px;">
           <span class="search-icon">${ICONS.search}</span>
           <input type="text" id="inv-search" placeholder="Search filaments by color, material, brand..." value="${escapeHtml(_searchQuery)}"/>
+          ${_searchQuery ? `<button type="button" class="search-clear-btn" id="inv-search-clear" title="Clear Search">✕</button>` : ''}
         </div>
         <select class="filter-select" id="inv-filter-material">
           <option value="">All Materials</option>
@@ -180,9 +181,10 @@ function renderConsumableToolbar(items) {
   return `
     <div class="toolbar animate-in animate-delay-1">
       <div class="toolbar-left">
-        <div class="search-bar">
+        <div class="search-bar" style="min-width:240px;max-width:340px;">
           <span class="search-icon">${ICONS.search}</span>
           <input type="text" id="inv-search" placeholder="Search brass inserts, nozzles, IPA, resin, locations..." value="${escapeHtml(_searchQuery)}"/>
+          ${_searchQuery ? `<button type="button" class="search-clear-btn" id="inv-search-clear" title="Clear Search">✕</button>` : ''}
         </div>
         <select class="filter-select" id="inv-filter-consumable-cat">
           <option value="">All Categories</option>
@@ -417,6 +419,11 @@ function bindEvents(container) {
     _searchQuery = e.target.value;
     render(container);
   }, 250));
+
+  container.querySelector('#inv-search-clear')?.addEventListener('click', () => {
+    _searchQuery = '';
+    render(container);
+  });
 
   // Filters
   container.querySelector('#inv-filter-material')?.addEventListener('change', (e) => {

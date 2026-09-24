@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -724,6 +725,117 @@ app.get('/api/printer/camera/snapshot', async (req, res) => {
   }
   res.status(502).send('Camera offline');
 });
+
+// Auto-discover Moonraker / Snapmaker printer IP on local network
+app.get('/api/printer/autodiscover', async (req, res) => {
+  const customSubnet = req.query.subnet;
+  const subnets = new Set();
+
+  if (customSubnet) {
+    subnets.add(customSubnet);
+  } else {
+    try {
+      const ifaces = os.networkInterfaces();
+      for (const dev in ifaces) {
+        for (const details of ifaces[dev]) {
+          if (details.family === 'IPv4' && !details.internal && details.address) {
+            const parts = details.address.split('.');
+            if (parts.length === 4) {
+              subnets.add(`${parts[0]}.${parts[1]}.${parts[2]}`);
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // Ensure common workshop subnets are included
+  subnets.add('192.168.0');
+  subnets.add('192.168.1');
+
+  // Read system ARP table for active dynamic IPs
+  const arpIps = [];
+  try {
+    const { execSync } = await import('child_process');
+    const arpOut = execSync('arp -a', { timeout: 1500 }).toString();
+    const matches = arpOut.match(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g) || [];
+    for (const ip of matches) {
+      if (!ip.endsWith('.255') && !ip.startsWith('224.') && !ip.startsWith('239.') && !ip.endsWith('.1')) {
+        arpIps.push(ip);
+      }
+    }
+  } catch {}
+
+  const probe = async (ip, port = 80) => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 650);
+      const r = await fetch(`http://${ip}:${port}/server/info`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (r.ok) {
+        const d = await r.json();
+        if (d.result && (d.result.klippy_state || d.result.moonraker_version || d.result.registered_directories)) {
+          return { found: true, ip, port, data: d.result };
+        }
+      }
+    } catch {}
+    return null;
+  };
+
+  // 1. Probe ARP active IPs first (fastest and highest probability)
+  for (const ip of arpIps) {
+    const hit = await probe(ip, 80);
+    if (hit) {
+      autoUpdatePrinterIpInDb(hit.ip);
+      return res.json(hit);
+    }
+  }
+
+  // 2. Candidate octets where 3D printers typically register on DHCP
+  const priorityOctets = [144, 145, 143, 146, 142, 140, 147, 148, 149, 150, 120, 121, 122, 131, 137, 178, 203, 233, 100, 101, 102, 105, 110, 115, 125, 130, 135, 155, 160];
+  const allOctets = [...priorityOctets];
+  for (let i = 2; i <= 254; i++) {
+    if (!allOctets.includes(i)) allOctets.push(i);
+  }
+
+  for (const subnet of subnets) {
+    // Run in parallel batches of 25 to complete quickly
+    const batchSize = 25;
+    for (let i = 0; i < allOctets.length; i += batchSize) {
+      const slice = allOctets.slice(i, i + batchSize);
+      const results = await Promise.all(slice.map(o => probe(`${subnet}.${o}`, 80)));
+      const hit = results.find(r => r && r.found);
+      if (hit) {
+        autoUpdatePrinterIpInDb(hit.ip);
+        return res.json(hit);
+      }
+    }
+  }
+
+  res.json({ found: false, message: 'Printer not found on local subnet. Verify printer is powered on and connected to Wi-Fi.' });
+});
+
+function autoUpdatePrinterIpInDb(newIp) {
+  try {
+    const db = loadData();
+    let updated = false;
+    (db.printers || []).forEach(p => {
+      if (p.name?.includes('Snapmaker') || p.model?.includes('Snapmaker') || p.iotType === 'moonraker') {
+        if (p.iotHost !== newIp) {
+          p.iotHost = newIp;
+          updated = true;
+        }
+      }
+    });
+    if (updated) {
+      saveData(db);
+      console.log(`[API] Auto-saved Snapmaker U1 IP in persisted.json to ${newIp}`);
+    }
+  } catch (err) {
+    console.error('[API] Failed to auto-save printer IP:', err.message);
+  }
+}
+
 
 
 // Serve production build if dist exists

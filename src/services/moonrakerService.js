@@ -7,6 +7,7 @@ const API_HOST = typeof window !== 'undefined' && window.location && window.loca
   ? window.location.hostname
   : 'localhost';
 const API_BASE = `http://${API_HOST}:4000/api`;
+let _lastAutodiscoverTime = 0;
 
 /** Helper to parse time estimates from sliced gcode filename, e.g. "FlowerPot_PLA_3h8m.gcode" */
 function parseTimeFromFilename(filename) {
@@ -55,6 +56,17 @@ export async function fetchPrinterTelemetry(ip = '192.168.0.144', port = 80) {
   }
 
   if (!data || !data.result) {
+    // Check if printer moved to a new DHCP IP
+    const now = Date.now();
+    if (now - _lastAutodiscoverTime > 12000) {
+      _lastAutodiscoverTime = now;
+      try {
+        const auto = await autodiscoverPrinterIp();
+        if (auto && auto.found && auto.ip !== ip) {
+          return { online: false, newIpFound: auto.ip, error: `Printer moved to dynamic IP: ${auto.ip}` };
+        }
+      } catch {}
+    }
     return { online: false, error: 'No response from printer' };
   }
 
@@ -211,40 +223,36 @@ export async function fetchAllCameraMedia(ip = '192.168.0.144', port = 80) {
 }
 
 /**
- * Auto-discover Snapmaker printer IP on local subnet
+ * Auto-discover Moonraker / Snapmaker printer IP on local network using backend ARP + subnet scanner
+ */
+export async function autodiscoverPrinterIp(subnet = null) {
+  const url = subnet ? `${API_BASE}/printer/autodiscover?subnet=${encodeURIComponent(subnet)}` : `${API_BASE}/printer/autodiscover`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+  } catch (err) {
+    console.warn('Backend autodiscovery request failed:', err.message);
+  }
+  return { found: false };
+}
+
+/**
+ * High-speed printer IP scanner with progress notification
  */
 export async function scanLocalSubnet(baseSubnet = '192.168.0', onProgress = null) {
-  const priority = [144, 145, 143, 146, 142, 140, 150, 100, 101, 102, 105, 110, 120];
-  const others = [];
-  for (let i = 100; i <= 200; i++) {
-    if (!priority.includes(i)) others.push(i);
+  if (onProgress) onProgress('Scanning active network via server ARP & subnet...', 1, 2);
+  const res = await autodiscoverPrinterIp(baseSubnet);
+  if (res && res.found) {
+    return {
+      found: true,
+      ip: res.ip,
+      version: res.data?.moonraker_version || res.version,
+      klippyState: res.data?.klippy_state || res.klippyState || 'ready',
+    };
   }
-  const queue = [...priority, ...others];
-
-  for (let i = 0; i < queue.length; i++) {
-    const testIp = `${baseSubnet}.${queue[i]}`;
-    if (onProgress) onProgress(testIp, i + 1, queue.length);
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 600);
-      const res = await fetch(`http://${testIp}/server/info`, { signal: controller.signal });
-      clearTimeout(timeoutId);
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.result?.klippy_state || data.result?.moonraker_version) {
-          return {
-            found: true,
-            ip: testIp,
-            version: data.result.moonraker_version,
-            klippyState: data.result.klippy_state,
-          };
-        }
-      }
-    } catch {}
-  }
-
   return { found: false };
 }
 

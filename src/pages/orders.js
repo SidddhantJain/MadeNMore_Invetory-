@@ -3,8 +3,8 @@
  * Phase 1: Multi-Item Assemblies, Interactive Kanban Pipeline, GST Invoicing & Milestone Receipts
  */
 
-import { getAll, create, update, remove, getById } from '../data/store.js';
-import { formatCurrency, formatDate, escapeHtml, todayStr } from '../utils/helpers.js';
+import { getAll, create, update, remove, getById, getAccountBalance } from '../data/store.js';
+import { formatCurrency, formatDate, escapeHtml, todayStr, debounce } from '../utils/helpers.js';
 import { ICONS } from '../utils/icons.js';
 import { showModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
@@ -30,6 +30,7 @@ let _currentView = 'kanban'; // 'kanban' | 'list'
 let _expandedOrderId = null;
 let _filterStatus = '';
 let _filterPriority = '';
+let _orderSearch = '';
 let _draggedOrderId = null;
 
 export function renderOrders(container) {
@@ -56,6 +57,17 @@ function calcOrderStats(order) {
 
 function getFilteredOrders() {
   let orders = getAll('orders');
+
+  if (_orderSearch) {
+    const q = _orderSearch.toLowerCase();
+    orders = orders.filter(o =>
+      o.clientName?.toLowerCase().includes(q) ||
+      o.id?.toLowerCase().includes(q) ||
+      o.clientPhone?.toLowerCase().includes(q) ||
+      o.description?.toLowerCase().includes(q) ||
+      (o.items || []).some(it => it.name?.toLowerCase().includes(q) || it.material?.toLowerCase().includes(q) || it.notes?.toLowerCase().includes(q))
+    );
+  }
 
   if (_filterStatus) {
     orders = orders.filter(o => {
@@ -145,6 +157,12 @@ function render(container) {
     <!-- Filtering Toolbar -->
     <div class="toolbar animate-in animate-delay-2">
       <div class="toolbar-left">
+        <div class="search-bar" style="min-width:240px;max-width:320px;">
+          <span class="search-icon">${ICONS.search}</span>
+          <input type="text" id="order-search-input" placeholder="Search orders, clients, parts..." value="${escapeHtml(_orderSearch)}"/>
+          ${_orderSearch ? `<button type="button" class="search-clear-btn" id="order-search-clear" title="Clear Search">✕</button>` : ''}
+        </div>
+
         <select class="filter-select" id="order-filter-status">
           <option value="" ${_filterStatus === '' ? 'selected' : ''}>All Stages</option>
           <option value="active" ${_filterStatus === 'active' ? 'selected' : ''}>Active Production</option>
@@ -467,6 +485,17 @@ function bindEvents(container) {
   });
 
   // Filters
+  const searchInput = container.querySelector('#order-search-input');
+  searchInput?.addEventListener('input', debounce((e) => {
+    _orderSearch = e.target.value.trim();
+    render(container);
+  }, 250));
+
+  container.querySelector('#order-search-clear')?.addEventListener('click', () => {
+    _orderSearch = '';
+    render(container);
+  });
+
   container.querySelector('#order-filter-status')?.addEventListener('change', (e) => {
     _filterStatus = e.target.value;
     render(container);
@@ -802,6 +831,7 @@ function openLogPaymentModal(orderId, container) {
   const order = getById('orders', orderId);
   if (!order) return;
 
+  const accounts = getAll('accounts');
   const stats = calcOrderStats(order);
   const remainingPct = Math.max(0, 100 - stats.paidPct);
 
@@ -831,6 +861,14 @@ function openLogPaymentModal(orderId, container) {
     <div class="form-group">
       <label class="form-label">Payment Date</label>
       <input class="form-input" type="date" id="pay-date" value="${todayStr()}" />
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Deposit Into Account (Automatic Inflow) *</label>
+      <select class="form-select" id="pay-account">
+        ${accounts.map(a => `<option value="${a.id}" ${a.isPrimary ? 'selected' : ''}>${escapeHtml(a.name)} (${formatCurrency(getAccountBalance(a.id).balance)})</option>`).join('')}
+      </select>
+      <div class="text-muted" style="font-size:0.72rem;margin-top:3px;">Live balance of this account will automatically increase upon confirmation.</div>
     </div>
 
     <div class="form-row">
@@ -865,6 +903,7 @@ function openLogPaymentModal(orderId, container) {
       const amount = parseFloat(document.getElementById('pay-amount')?.value);
       const date = document.getElementById('pay-date')?.value || todayStr();
       const notes = document.getElementById('pay-notes')?.value.trim() || '';
+      const accountId = document.getElementById('pay-account')?.value || 'acc1';
 
       if ((!percentage || percentage <= 0) && (!amount || amount <= 0)) {
         showToast('Enter a percentage or amount', 'error');
@@ -885,6 +924,7 @@ function openLogPaymentModal(orderId, container) {
         percentage: Math.round(finalPct * 10) / 10,
         amount: Math.round(finalAmt * 100) / 100,
         notes,
+        accountId,
       };
 
       const updatedPayments = [...(order.payments || []), payment];
@@ -907,6 +947,7 @@ function openLogPaymentModal(orderId, container) {
         amount: Math.round(finalAmt * 100) / 100,
         notes: `Order milestone payment: ${pctLabel} of ${formatCurrency(order.totalAmount)}. ${notes}`.trim(),
         orderId: orderId,
+        accountId: accountId,
       });
 
       if (isFullyPaid) {

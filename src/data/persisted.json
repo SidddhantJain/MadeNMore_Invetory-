@@ -818,18 +818,6 @@
       "supplier": "Robu.in"
     },
     {
-      "id": "c4",
-      "name": "M5 Brass Threaded Heat-Set Inserts",
-      "category": "Fasteners & Inserts",
-      "specs": "M5 x 6.5mm (OD 7.0mm), Knurled Heavy-Duty",
-      "stock": 35,
-      "unit": "pcs",
-      "minStock": 50,
-      "costPerUnit": 4.8,
-      "location": "Bin A4 - Hardware Drawer",
-      "supplier": "Robu.in"
-    },
-    {
       "id": "c5",
       "name": "Hardened Steel Nozzle 0.4mm (High Flow)",
       "category": "Maintenance & Spare Parts",

@@ -221,13 +221,15 @@ export function getAccountBalance(accountId) {
   const orders = _cache.orders || [];
 
   // Inflows:
-  // 1. Transactions of type 'sale' assigned to this account, or unassigned fallback to primary
+  // 1. Transactions of type 'sale' assigned to this account
   const saleTx = transactions
     .filter(t => t.type === 'sale' && (t.accountId === accountId || (!t.accountId && isPrimary)))
     .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
 
-  // 2. Order Payments assigned to this account
-  const orderPayments = orders
+  // 2. Order Payments that were not already logged as ledger transactions
+  const recordedTxOrderIds = new Set(transactions.filter(t => t.orderId).map(t => t.orderId));
+  const unlinkedOrderPayments = orders
+    .filter(o => !recordedTxOrderIds.has(o.id))
     .flatMap(o => o.payments || [])
     .filter(p => p.accountId === accountId || (!p.accountId && isPrimary))
     .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
@@ -242,7 +244,7 @@ export function getAccountBalance(accountId) {
     .filter(t => t.type === 'adjustment' && t.accountId === accountId && (t.amount || 0) > 0)
     .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
 
-  const totalInflow = saleTx + orderPayments + transfersIn + adjustmentsIn;
+  const totalInflow = saleTx + unlinkedOrderPayments + transfersIn + adjustmentsIn;
 
   // Outflows:
   // 1. Transactions of type 'expense' assigned to this account
@@ -440,28 +442,44 @@ export async function undo() {
   }
 }
 
-/** Search across collections */
+/** Search across all business collections */
 export function search(query) {
   const q = (query || '').toLowerCase().trim();
-  if (!q) return { filaments: [], transactions: [], orders: [] };
+  if (!q) return { orders: [], filaments: [], printers: [], accounts: [], transactions: [] };
 
   const filaments = getAll('filaments');
   const transactions = getAll('transactions');
   const orders = getAll('orders');
+  const printers = getAll('printers');
+  const accounts = getAll('accounts');
 
   return {
+    orders: orders.filter(o =>
+      o.clientName?.toLowerCase().includes(q) ||
+      o.description?.toLowerCase().includes(q) ||
+      o.clientPhone?.toLowerCase().includes(q) ||
+      o.id?.toLowerCase().includes(q) ||
+      (o.items || []).some(it => it.name?.toLowerCase().includes(q))
+    ),
     filaments: filaments.filter(f =>
       f.name?.toLowerCase().includes(q) ||
       f.material?.toLowerCase().includes(q) ||
       f.brand?.toLowerCase().includes(q)
     ),
+    printers: printers.filter(p =>
+      p.name?.toLowerCase().includes(q) ||
+      p.model?.toLowerCase().includes(q) ||
+      p.iotHost?.includes(q) ||
+      p.location?.toLowerCase().includes(q)
+    ),
+    accounts: accounts.filter(a =>
+      a.name?.toLowerCase().includes(q) ||
+      a.institution?.toLowerCase().includes(q) ||
+      a.accountNumber?.toLowerCase().includes(q)
+    ),
     transactions: transactions.filter(t =>
       t.description?.toLowerCase().includes(q) ||
       t.category?.toLowerCase().includes(q)
-    ),
-    orders: orders.filter(o =>
-      o.clientName?.toLowerCase().includes(q) ||
-      o.description?.toLowerCase().includes(q)
     )
   };
 }

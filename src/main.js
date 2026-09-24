@@ -4,7 +4,7 @@
  */
 
 import './styles/main.css';
-import { initStore, undo, search, getSettings, create, getStats } from './data/store.js';
+import { initStore, undo, search, getSettings, create, getStats, getAll } from './data/store.js';
 import { seedDatabase, MATERIAL_TYPES } from './data/seed.js';
 import { renderDashboard } from './pages/dashboard.js';
 import { renderInventory } from './pages/inventory.js';
@@ -256,6 +256,9 @@ function renderTopHeader() {
   const header = document.getElementById('top-header');
   if (!header) return;
 
+  const snapmaker = (getAll('printers') || []).find(p => p.name?.includes('Snapmaker') || p.model?.includes('Snapmaker'));
+  const snapmakerIp = snapmaker?.iotHost || '192.168.0.144';
+
   header.innerHTML = `
     <div class="top-header-left">
       <div class="top-search-trigger" id="top-search-btn" title="Global Search (Ctrl+K)">
@@ -266,10 +269,10 @@ function renderTopHeader() {
     </div>
 
     <div class="top-header-center">
-      <a href="#/printers" class="top-fleet-pill" id="top-fleet-telemetry-pill" title="Click to view Fleet Hub">
+      <a href="#/printers" class="top-fleet-pill" id="top-fleet-telemetry-pill" title="Click to view Fleet Hub & Klipper Controls">
         <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;box-shadow:0 0 8px #3b82f6;"></span>
         <span style="font-weight:700;">Snapmaker U1:</span>
-        <span id="top-printer-status-text">Online • 192.168.0.144</span>
+        <span id="top-printer-status-text">LAN • ${escapeHtml(snapmakerIp)}</span>
       </a>
     </div>
 
@@ -418,42 +421,80 @@ function showGlobalSearch() {
   if (!root) return;
 
   root.innerHTML = `
-    <div class="modal-overlay" id="search-overlay" style="align-items:flex-start;padding-top:15vh;">
-      <div class="modal" style="max-width:600px;">
-        <div style="padding:var(--space-md) var(--space-lg);">
-          <div class="search-bar" style="max-width:100%;">
+    <div class="modal-overlay" id="search-overlay" style="align-items:flex-start;padding-top:10vh;">
+      <div class="modal" style="max-width:680px;border:1px solid rgba(255,255,255,0.12);box-shadow:0 24px 64px rgba(0,0,0,0.85);backdrop-filter:blur(24px);">
+        <div style="padding:var(--space-md) var(--space-lg);border-bottom:1px solid var(--border);">
+          <div class="search-bar" style="max-width:100%;display:flex;align-items:center;">
             <span class="search-icon">${ICONS.search}</span>
-            <input type="text" id="global-search-input" placeholder="Search filaments, transactions..." style="font-size:1rem;padding:12px 14px 12px 40px;" autofocus />
+            <input type="text" id="global-search-input" placeholder="Search orders, clients, filaments, printers, accounts, ledger..." style="font-size:1.05rem;padding:12px 38px 12px 42px;width:100%;" autofocus autocomplete="off" />
+            <button type="button" id="global-search-clear" style="position:absolute;right:12px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;display:none;">✕</button>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:0.75rem;color:var(--text-muted);">
+            <span>Quick Jump: Type any client name, spool color, machine, or amount</span>
+            <kbd style="font-family:var(--font-mono);font-size:0.7rem;background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:4px;">ESC to exit</kbd>
           </div>
         </div>
-        <div id="global-search-results" style="max-height:400px;overflow-y:auto;padding:0 var(--space-lg) var(--space-lg);"></div>
+        <div id="global-search-results" style="max-height:480px;overflow-y:auto;padding:var(--space-md) var(--space-lg);">
+          <div class="text-secondary text-center" style="padding:30px 10px;font-size:0.85rem;">
+            Type at least 1 character to search across the entire workshop system
+          </div>
+        </div>
       </div>
     </div>
   `;
 
   const overlay = root.querySelector('#search-overlay');
   const input = root.querySelector('#global-search-input');
+  const clearBtn = root.querySelector('#global-search-clear');
   const results = root.querySelector('#global-search-results');
 
+  const closeSearch = () => {
+    root.innerHTML = '';
+    document.removeEventListener('keydown', escHandler);
+  };
+
   overlay?.addEventListener('click', (e) => {
-    if (e.target === overlay) root.innerHTML = '';
+    if (e.target === overlay) closeSearch();
+  });
+
+  clearBtn?.addEventListener('click', () => {
+    if (input) {
+      input.value = '';
+      input.focus();
+      clearBtn.style.display = 'none';
+      if (results) results.innerHTML = '<div class="text-secondary text-center" style="padding:30px 10px;font-size:0.85rem;">Type at least 1 character to search across the entire workshop system</div>';
+    }
   });
 
   const doSearch = debounce((q) => {
-    if (!q.trim()) { results.innerHTML = ''; return; }
-    const res = search(q);
-    let html = '';
+    const term = q.trim();
+    if (clearBtn) clearBtn.style.display = term ? 'block' : 'none';
+    if (!term) {
+      results.innerHTML = '<div class="text-secondary text-center" style="padding:30px 10px;font-size:0.85rem;">Type at least 1 character to search across the entire workshop system</div>';
+      return;
+    }
 
-    if (res.filaments.length > 0) {
-      html += `<div class="sidebar-section-label" style="padding:8px 0 4px;">Filaments</div>`;
-      res.filaments.slice(0, 5).forEach(f => {
+    const res = search(term);
+    let html = '';
+    let totalHits = 0;
+
+    // 1. Orders
+    if (res.orders.length > 0) {
+      totalHits += res.orders.length;
+      html += `<div class="sidebar-section-label" style="padding:8px 0 4px;color:var(--accent);">📦 Client Orders (${res.orders.length})</div>`;
+      res.orders.slice(0, 5).forEach(o => {
         html += `
-          <div class="recent-item" style="cursor:pointer;padding:10px;border-radius:8px;" data-goto="#/inventory">
-            <div class="recent-item-left">
-              <div class="color-swatch" style="background-color:${f.hex || '#888'};width:24px;height:24px;"></div>
-              <div>
-                <div class="recent-item-desc">${escapeHtml(f.name)}</div>
-                <div class="recent-item-date">${f.material} • ${f.spools} spool(s)</div>
+          <div class="recent-item" style="cursor:pointer;padding:10px 12px;border-radius:8px;margin-bottom:4px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);" data-goto="#/orders">
+            <div class="recent-item-left" style="min-width:0;flex:1;">
+              <span style="font-size:1.3rem;">📋</span>
+              <div style="min-width:0;flex:1;">
+                <div class="recent-item-desc" style="font-weight:600;display:flex;justify-content:space-between;">
+                  <span>${escapeHtml(o.clientName)}</span>
+                  <span class="text-success">${formatCurrency(o.totalAmount || 0)}</span>
+                </div>
+                <div class="recent-item-date truncate" style="color:var(--text-secondary);">
+                  ${escapeHtml(o.description || 'Production Batch')} • <span class="badge" style="font-size:0.68rem;">${escapeHtml(o.kanbanStage || o.status || 'Active')}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -461,16 +502,78 @@ function showGlobalSearch() {
       });
     }
 
+    // 2. Filaments
+    if (res.filaments.length > 0) {
+      totalHits += res.filaments.length;
+      html += `<div class="sidebar-section-label" style="padding:8px 0 4px;color:var(--info);">🧵 Filaments (${res.filaments.length})</div>`;
+      res.filaments.slice(0, 5).forEach(f => {
+        html += `
+          <div class="recent-item" style="cursor:pointer;padding:10px 12px;border-radius:8px;margin-bottom:4px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);" data-goto="#/inventory">
+            <div class="recent-item-left">
+              <div class="color-swatch" style="background-color:${f.hex || '#888'};width:24px;height:24px;border-radius:50%;"></div>
+              <div>
+                <div class="recent-item-desc" style="font-weight:600;">${escapeHtml(f.name)}</div>
+                <div class="recent-item-date" style="color:var(--text-secondary);">${escapeHtml(f.material)} • ${f.spools} spool(s) in stock • ${escapeHtml(f.brand || 'Numakers')}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    // 3. Printers
+    if (res.printers.length > 0) {
+      totalHits += res.printers.length;
+      html += `<div class="sidebar-section-label" style="padding:8px 0 4px;color:var(--warning);">🖨️ 3D Printers (${res.printers.length})</div>`;
+      res.printers.slice(0, 4).forEach(p => {
+        html += `
+          <div class="recent-item" style="cursor:pointer;padding:10px 12px;border-radius:8px;margin-bottom:4px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);" data-goto="#/printers">
+            <div class="recent-item-left">
+              <span style="font-size:1.3rem;">⚙️</span>
+              <div>
+                <div class="recent-item-desc" style="font-weight:600;">${escapeHtml(p.name)} (${escapeHtml(p.model)})</div>
+                <div class="recent-item-date" style="color:var(--text-secondary);">IP: <strong>${escapeHtml(p.iotHost || 'Unassigned')}</strong> • Status: <strong>${p.status || 'idle'}</strong></div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    // 4. Accounts
+    if (res.accounts.length > 0) {
+      totalHits += res.accounts.length;
+      html += `<div class="sidebar-section-label" style="padding:8px 0 4px;color:var(--success);">🏦 Treasury & Accounts (${res.accounts.length})</div>`;
+      res.accounts.slice(0, 4).forEach(a => {
+        html += `
+          <div class="recent-item" style="cursor:pointer;padding:10px 12px;border-radius:8px;margin-bottom:4px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);" data-goto="#/accounts">
+            <div class="recent-item-left">
+              <span style="font-size:1.3rem;">💳</span>
+              <div>
+                <div class="recent-item-desc" style="font-weight:600;">${escapeHtml(a.name)}</div>
+                <div class="recent-item-date" style="color:var(--text-secondary);">${escapeHtml(a.institution || 'Account')} • ${escapeHtml(a.accountNumber || '')}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    // 5. Transactions
     if (res.transactions.length > 0) {
-      html += `<div class="sidebar-section-label" style="padding:8px 0 4px;">Transactions</div>`;
+      totalHits += res.transactions.length;
+      html += `<div class="sidebar-section-label" style="padding:8px 0 4px;color:var(--text-primary);">💸 Ledger Transactions (${res.transactions.length})</div>`;
       res.transactions.slice(0, 5).forEach(t => {
         html += `
-          <div class="recent-item" style="cursor:pointer;padding:10px;border-radius:8px;" data-goto="#/transactions">
+          <div class="recent-item" style="cursor:pointer;padding:10px 12px;border-radius:8px;margin-bottom:4px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);" data-goto="#/transactions">
             <div class="recent-item-left">
               <div class="recent-item-icon ${t.type}" style="width:24px;height:24px;font-size:0.7rem;">${t.type === 'sale' ? '↑' : '↓'}</div>
               <div>
-                <div class="recent-item-desc">${escapeHtml(t.description)}</div>
-                <div class="recent-item-date">${t.category || ''}</div>
+                <div class="recent-item-desc" style="font-weight:600;display:flex;justify-content:space-between;">
+                  <span>${escapeHtml(t.description)}</span>
+                  <span class="${t.type === 'sale' ? 'text-success' : 'text-danger'}">${t.type === 'sale' ? '+' : '-'}${formatCurrency(t.amount)}</span>
+                </div>
+                <div class="recent-item-date" style="color:var(--text-secondary);">${t.category || ''} • ${t.date || ''}</div>
               </div>
             </div>
           </div>
@@ -479,7 +582,7 @@ function showGlobalSearch() {
     }
 
     if (!html) {
-      html = '<div class="text-muted text-center" style="padding:20px;font-size:0.85rem;">No results found</div>';
+      html = '<div class="text-muted text-center" style="padding:30px;font-size:0.85rem;">No matches found for "' + escapeHtml(term) + '"</div>';
     }
 
     results.innerHTML = html;
@@ -488,20 +591,17 @@ function showGlobalSearch() {
     results.querySelectorAll('[data-goto]').forEach(el => {
       el.addEventListener('click', () => {
         window.location.hash = el.dataset.goto;
-        root.innerHTML = '';
+        closeSearch();
       });
     });
-  }, 200);
+  }, 150);
 
   input?.addEventListener('input', (e) => doSearch(e.target.value));
   input?.focus();
 
-  // Escape
+  // Escape listener
   const escHandler = (e) => {
-    if (e.key === 'Escape') {
-      root.innerHTML = '';
-      document.removeEventListener('keydown', escHandler);
-    }
+    if (e.key === 'Escape') closeSearch();
   };
   document.addEventListener('keydown', escHandler);
 }

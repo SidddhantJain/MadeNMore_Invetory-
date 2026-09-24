@@ -4,7 +4,7 @@
  * and 30-Day Filament Reorder Burn Rate Forecasting
  */
 
-import { getAll, create, update, remove, getSettings } from '../data/store.js';
+import { getAll, create, update, remove, getSettings, getAccountBalance } from '../data/store.js';
 import { TRANSACTION_CATEGORIES } from '../data/seed.js';
 import { formatCurrency, formatDate, formatDateInput, escapeHtml, debounce, todayStr } from '../utils/helpers.js';
 import { ICONS } from '../utils/icons.js';
@@ -284,9 +284,10 @@ function renderLedgerView(items, totalSales, totalExpenses, balance) {
     <!-- Toolbar -->
     <div class="toolbar animate-in animate-delay-2">
       <div class="toolbar-left">
-        <div class="search-bar">
+        <div class="search-bar" style="min-width:240px;max-width:320px;">
           <span class="search-icon">${ICONS.search}</span>
           <input type="text" id="txn-search" placeholder="Search transactions..." value="${escapeHtml(_searchQuery)}"/>
+          ${_searchQuery ? `<button type="button" class="search-clear-btn" id="txn-search-clear" title="Clear Search">✕</button>` : ''}
         </div>
         <select class="filter-select" id="txn-filter-type">
           <option value="">All Types</option>
@@ -531,6 +532,11 @@ function bindEvents(container) {
     render(container);
   }, 250));
 
+  container.querySelector('#txn-search-clear')?.addEventListener('click', () => {
+    _searchQuery = '';
+    render(container);
+  });
+
   // Filters
   container.querySelector('#txn-filter-type')?.addEventListener('change', (e) => {
     _typeFilter = e.target.value;
@@ -614,14 +620,15 @@ function openTransactionModal(defaultType = 'sale', editId = null) {
   const existing = editId ? getAll('transactions').find(t => t.id === editId) : null;
   const isEdit = !!existing;
   const currentType = existing?.type || defaultType;
+  const accounts = getAll('accounts');
 
   const body = `
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Type *</label>
         <select class="form-select" id="txn-type">
-          <option value="sale" ${currentType === 'sale' ? 'selected' : ''}>Sale (Inflow)</option>
-          <option value="expense" ${currentType === 'expense' ? 'selected' : ''}>Expense (Outflow)</option>
+          <option value="sale" ${currentType === 'sale' ? 'selected' : ''}>Sale (Inflow / Credit)</option>
+          <option value="expense" ${currentType === 'expense' ? 'selected' : ''}>Expense (Outflow / Debit)</option>
         </select>
       </div>
       <div class="form-group">
@@ -630,6 +637,14 @@ function openTransactionModal(defaultType = 'sale', editId = null) {
           ${TRANSACTION_CATEGORIES.map(c => `<option value="${c}" ${existing?.category === c ? 'selected' : ''}>${c}</option>`).join('')}
         </select>
       </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Operating Account (Automatic Inflow/Outflow Sync) *</label>
+      <select class="form-select" id="txn-account">
+        ${accounts.map(a => `<option value="${a.id}" ${(existing?.accountId === a.id || (!existing?.accountId && a.isPrimary)) ? 'selected' : ''}>${escapeHtml(a.name)} (${formatCurrency(getAccountBalance(a.id).balance)})</option>`).join('')}
+      </select>
+      <div class="text-muted" style="font-size:0.72rem;margin-top:3px;">Sale inflows will automatically credit, and expense outflows will debit this account balance.</div>
     </div>
 
     <div class="form-row">
@@ -661,6 +676,7 @@ function openTransactionModal(defaultType = 'sale', editId = null) {
     onConfirm: () => {
       const desc = document.getElementById('txn-description').value.trim();
       const amount = parseFloat(document.getElementById('txn-amount').value);
+      const accountId = document.getElementById('txn-account')?.value || 'acc1';
 
       if (!desc) {
         showToast('Description is required', 'error');
@@ -678,6 +694,7 @@ function openTransactionModal(defaultType = 'sale', editId = null) {
         date: document.getElementById('txn-date').value || todayStr(),
         description: desc,
         notes: document.getElementById('txn-notes').value.trim(),
+        accountId,
       };
 
       if (isEdit) {

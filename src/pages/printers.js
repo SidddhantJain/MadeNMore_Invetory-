@@ -15,6 +15,7 @@ import {
   fetchPrinterTelemetry,
   fetchLatestSnapshot,
   scanLocalSubnet,
+  autodiscoverPrinterIp,
   fetchAllCameraMedia,
   sendGcodeCommand,
   pausePrint,
@@ -79,7 +80,11 @@ function render(container) {
         </button>
         <button class="btn btn-secondary" id="btn-sync-physical" title="Poll physical Snapmaker U1 over Wi-Fi now">
           <span style="font-size:1.05rem;">🔄</span>
-          Sync Physical Farm
+          Sync Farm
+        </button>
+        <button class="btn btn-secondary" id="btn-autodiscover-ip" title="Auto-detect Snapmaker U1 dynamic IP on local Wi-Fi router">
+          <span style="font-size:1.05rem;">🔍</span>
+          Auto-Detect IP
         </button>
         <button class="btn btn-secondary" id="btn-scale-tare-printers" title="Weigh physical spool on digital scale">
           <span style="font-size:1.05rem;">⚖️</span>
@@ -198,6 +203,7 @@ function renderPrinterCard(printer) {
             <button class="btn btn-secondary btn-sm" data-action="open-klipper-controls" data-id="${printer.id}" title="Snapmaker U1 Klipper Control Suite & Console" style="font-size:0.74rem;padding:2px 7px;display:inline-flex;align-items:center;gap:3px;">🎮 Controls</button>
             <button class="btn-icon btn-sm" data-action="fetch-camera" data-id="${printer.id}" title="View Camera Snapshot" style="font-size:0.8rem;padding:2px 4px;">📷</button>
             <button class="btn-icon btn-sm" data-action="poll-physical" data-id="${printer.id}" title="Refresh Live Data" style="font-size:0.8rem;padding:2px 4px;">🔄</button>
+            <button class="btn-icon btn-sm" data-action="autodetect-printer-ip" data-id="${printer.id}" title="Auto-Detect Dynamic LAN IP" style="font-size:0.8rem;padding:2px 4px;">🔍</button>
             <a href="http://${escapeHtml(printer.iotHost)}/" target="_blank" title="Open Fluidd Web UI" style="color:var(--text-secondary);font-size:0.8rem;padding:2px 4px;text-decoration:none;">🌐</a>
           </div>
         </div>
@@ -419,12 +425,39 @@ function bindEvents(container) {
     }
   });
 
+  // Auto-Detect IP button in header
+  container.querySelector('#btn-autodiscover-ip')?.addEventListener('click', async () => {
+    const btn = container.querySelector('#btn-autodiscover-ip');
+    if (!btn) return;
+    btn.disabled = true;
+    const origText = btn.innerHTML;
+    btn.innerHTML = `<span class="telemetry-pulse">🔄</span> Scanning Wi-Fi...`;
+    showToast('Scanning network for Snapmaker U1 dynamic IP...', 'info');
+
+    const res = await autodiscoverPrinterIp();
+    btn.disabled = false;
+    btn.innerHTML = origText;
+
+    if (res && res.found) {
+      const snapmaker = getAll('printers').find(p => p.name?.includes('Snapmaker') || p.model?.includes('Snapmaker')) || getAll('printers')[0];
+      if (snapmaker) {
+        update('printers', snapmaker.id, { iotHost: res.ip });
+        showToast(`🟢 Snapmaker U1 auto-detected at IP: ${res.ip}! Reconnected.`, 'success');
+        render(container);
+        syncPhysicalPrinters(container, false);
+      }
+    } else {
+      showToast('Could not find active Moonraker printer on local Wi-Fi. Verify printer power & network.', 'warning');
+    }
+  });
+
   // Card Actions
   container.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const { action, id } = btn.dataset;
       if (action === 'open-klipper-controls') openKlipperControlModal(id, container);
+      else if (action === 'autodetect-printer-ip') autodetectSinglePrinter(id, container);
       else if (action === 'assign-job') openAssignJobModal(id, container);
       else if (action === 'complete-job') markJobComplete(id, container);
       else if (action === 'scrap-job') openScrapLossModal(id, container);
@@ -443,6 +476,21 @@ function bindEvents(container) {
   });
 }
 
+async function autodetectSinglePrinter(printerId, container) {
+  const printer = getById('printers', printerId);
+  if (!printer) return;
+  showToast(`Auto-detecting dynamic IP for ${printer.name}...`, 'info');
+  const res = await autodiscoverPrinterIp();
+  if (res && res.found) {
+    update('printers', printerId, { iotHost: res.ip });
+    showToast(`🟢 ${printer.name} found at dynamic IP: ${res.ip}!`, 'success');
+    render(container);
+    syncPhysicalPrinters(container, false);
+  } else {
+    showToast(`Could not discover ${printer.name} on local network. Check Wi-Fi connection.`, 'warning');
+  }
+}
+
 // ─── Sync Physical LAN Printers ────────────────────────────────
 async function syncPhysicalPrinters(container, showFeedback = true) {
   const printers = getAll('printers');
@@ -452,6 +500,10 @@ async function syncPhysicalPrinters(container, showFeedback = true) {
     if (printer.iotHost) {
       try {
         const tel = await fetchPrinterTelemetry(printer.iotHost, printer.iotPort || 80);
+        if (tel.newIpFound && tel.newIpFound !== printer.iotHost) {
+          update('printers', printer.id, { iotHost: tel.newIpFound });
+          showToast(`🔍 Snapmaker U1 dynamic IP changed to ${tel.newIpFound}! Auto-updated.`, 'success');
+        }
         if (tel.online) {
           update('printers', printer.id, {
             currentNozzleTemp: tel.currentNozzleTemp,
