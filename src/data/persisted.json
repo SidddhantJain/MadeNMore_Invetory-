@@ -372,6 +372,28 @@
       "id": "mtzf23t6j8slkd",
       "createdAt": "2026-09-13T06:11:46.506Z",
       "updatedAt": "2026-09-13T06:11:46.514Z"
+    },
+    {
+      "name": "Antique Gold (copy)",
+      "hex": "#cfb53b",
+      "spools": 1,
+      "material": "PLA Silk",
+      "usable": true,
+      "brand": "Numakers",
+      "id": "mufhzkggli24cn",
+      "createdAt": "2026-09-24T12:18:05.776Z",
+      "updatedAt": "2026-09-24T12:18:06.061Z"
+    },
+    {
+      "name": "Antique Gold (copy)",
+      "hex": "#cfb53b",
+      "spools": 1,
+      "material": "PLA Silk",
+      "usable": true,
+      "brand": "Numakers",
+      "id": "mufi4aghv0icff",
+      "createdAt": "2026-09-24T12:21:46.097Z",
+      "updatedAt": "2026-09-24T12:21:46.102Z"
     }
   ],
   "transactions": [

@@ -334,7 +334,8 @@ function calculate(container) {
   const materialCost = (weight / 1000) * costPerKg;
   const wasteCost = materialCost * (waste / 100);
   const electricityCost = (time * (power / 1000)) * elecRate;
-  const totalCost = materialCost + wasteCost + electricityCost;
+  const machineWear = time * 25; // ₹25/hr depreciation & maintenance reserve
+  const totalCost = materialCost + wasteCost + electricityCost + machineWear;
   const suggestedPrice = Math.round(totalCost * (1 + markup / 100));
   const profit = suggestedPrice - totalCost;
 
@@ -349,34 +350,87 @@ function calculate(container) {
   };
 
   const resultsEl = container.querySelector('#calc-results');
-  if (!resultsEl) return;
+  if (resultsEl) {
+    resultsEl.innerHTML = `
+      <div class="calc-result-row">
+        <span class="label">Material Cost (${weight}g ${mat})</span>
+        <span class="value">${formatCurrency(materialCost)}</span>
+      </div>
+      <div class="calc-result-row">
+        <span class="label">Failure Buffer (${waste}%)</span>
+        <span class="value">${formatCurrency(wasteCost)}</span>
+      </div>
+      <div class="calc-result-row">
+        <span class="label">Electricity (${time}h @ ₹${elecRate})</span>
+        <span class="value">${formatCurrency(electricityCost)}</span>
+      </div>
+      <div class="calc-result-row">
+        <span class="label">Machine Wear & Maintenance (₹25/h)</span>
+        <span class="value">${formatCurrency(machineWear)}</span>
+      </div>
+      <div class="calc-result-row" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;">
+        <span class="label" style="font-weight:600;">Total Production Cost</span>
+        <span class="value">${formatCurrency(totalCost)}</span>
+      </div>
+      <div class="calc-result-row">
+        <span class="label">Commercial Margin (${markup}%)</span>
+        <span class="value text-success">+${formatCurrency(profit)}</span>
+      </div>
+      <div class="calc-result-row calc-total-row" style="margin-top:10px;background:rgba(139,92,246,0.1);padding:10px 14px;border-radius:var(--radius-md);border:1px solid rgba(139,92,246,0.25);">
+        <span class="label" style="font-size:1.05rem;font-weight:700;">Recommended Quote Price</span>
+        <span class="value" style="font-size:1.3rem;font-weight:800;color:#fff;">${formatCurrency(suggestedPrice)}</span>
+      </div>
+    `;
+  }
 
-  resultsEl.innerHTML = `
-    <div class="calc-result-row">
-      <span class="label">Material Cost (${weight}g)</span>
-      <span class="value">${formatCurrency(materialCost)}</span>
-    </div>
-    <div class="calc-result-row">
-      <span class="label">Waste Buffer (${waste}%)</span>
-      <span class="value">${formatCurrency(wasteCost)}</span>
-    </div>
-    <div class="calc-result-row">
-      <span class="label">Electricity (${time}h @ ₹${elecRate})</span>
-      <span class="value">${formatCurrency(electricityCost)}</span>
-    </div>
-    <div class="calc-result-row" style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;">
-      <span class="label" style="font-weight:600;">Total Production Cost</span>
-      <span class="value">${formatCurrency(totalCost)}</span>
-    </div>
-    <div class="calc-result-row">
-      <span class="label">Net Profit Margin (${markup}%)</span>
-      <span class="value text-success">+${formatCurrency(profit)}</span>
-    </div>
-    <div class="calc-result-row calc-total-row" style="margin-top:10px;background:rgba(139,92,246,0.1);padding:10px 14px;border-radius:var(--radius-md);border:1px solid rgba(139,92,246,0.25);">
-      <span class="label" style="font-size:1.05rem;font-weight:700;">Recommended Quote Price</span>
-      <span class="value" style="font-size:1.3rem;font-weight:800;color:#fff;">${formatCurrency(suggestedPrice)}</span>
-    </div>
-  `;
+  // Populate Tier Pricing Table
+  const tierTbody = container.querySelector('#tier-pricing-tbody');
+  const tiers = [
+    { qty: 1, discount: 0, label: 'Standard', lead: `${Math.max(1, Math.ceil(time / 8))}d` },
+    { qty: 5, discount: 8, label: 'Batch 5', lead: `${Math.max(1, Math.ceil((time * 5) / 16))}d` },
+    { qty: 10, discount: 15, label: 'Small Run', lead: `${Math.max(2, Math.ceil((time * 10) / 20))}d` },
+    { qty: 25, discount: 22, label: 'Commercial', lead: `${Math.max(3, Math.ceil((time * 25) / 24))}d` },
+    { qty: 50, discount: 28, label: 'Production', lead: `${Math.max(4, Math.ceil((time * 50) / 24))}d` },
+    { qty: 100, discount: 35, label: 'Wholesale', lead: `${Math.max(6, Math.ceil((time * 100) / 24))}d` },
+  ];
+
+  if (tierTbody) {
+    tierTbody.innerHTML = tiers.map(t => {
+      const uPrice = Math.round(suggestedPrice * (1 - t.discount / 100));
+      const bTotal = uPrice * t.qty;
+      return `
+        <tr>
+          <td style="font-weight:700;">${t.qty} pcs</td>
+          <td>${t.discount === 0 ? '<span style="color:var(--text-muted);font-size:0.75rem;">Base</span>' : `<span class="tier-badge">-${t.discount}%</span>`}</td>
+          <td style="font-weight:600;font-family:var(--font-mono);">${formatCurrency(uPrice)}</td>
+          <td style="font-weight:700;color:#fff;font-family:var(--font-mono);">${formatCurrency(bTotal)}</td>
+          <td style="font-size:0.75rem;color:var(--text-secondary);">${t.lead}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // Rebind Tier Pricing Copy button
+  const copyTierBtn = container.querySelector('#btn-copy-tiered-pricing');
+  if (copyTierBtn) {
+    copyTierBtn.onclick = () => {
+      let text = `*Made N More 3D Printing — Commercial Volume Matrix*\n` +
+        `📦 *Item:* ${_lastCalculated.partName} (${_lastCalculated.material}, ${_lastCalculated.weight}g)\n` +
+        `──────────────────────────\n`;
+
+      tiers.forEach(t => {
+        const uP = Math.round(_lastCalculated.suggestedPrice * (1 - t.discount / 100));
+        const tot = uP * t.qty;
+        const discStr = t.discount > 0 ? ` [${t.discount}% OFF]` : ` [Standard]`;
+        text += `• *${t.qty} pcs:* ${formatCurrency(uP)}/pc → *${formatCurrency(tot)}* total${discStr} (${t.lead})\n`;
+      });
+
+      text += `──────────────────────────\n_Precision Manufactured at Made N More Labs_`;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Copied Commercial Tier Pricing to clipboard!', 'success');
+      });
+    };
+  }
 }
 
 // ─── G-Code, 3MF & STL File Ingestion ────────────────────────

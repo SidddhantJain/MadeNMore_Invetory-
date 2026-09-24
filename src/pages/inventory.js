@@ -615,19 +615,28 @@ export function openThermalLabelModal(f) {
         </div>
       </div>
 
-      <div style="display:flex;gap:12px;width:100%;justify-content:center;">
-        <button class="btn btn-primary" id="btn-trigger-thermal-print" style="padding:10px 24px;">
+      <div style="display:flex;gap:12px;width:100%;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="btn-trigger-thermal-print" style="padding:10px 20px;">
           🖨️ Print 50x30mm Thermal Sticker
+        </button>
+        <button class="btn btn-secondary" id="btn-copy-qr-action" style="padding:10px 20px;">
+          📋 Copy QR Data
         </button>
       </div>
     </div>
   `;
 
   showModal({
-    title: `Thermal Spool QR Label — ${f.name}`,
+    title: `Thermal Spool QR Label (50x30mm) — ${f.name}`,
     body,
     confirmText: 'Done',
     onReady: () => {
+      document.getElementById('btn-copy-qr-action')?.addEventListener('click', () => {
+        navigator.clipboard.writeText(qrData).then(() => {
+          showToast('Copied Spool QR payload to clipboard!', 'success');
+        });
+      });
+
       document.getElementById('btn-trigger-thermal-print')?.addEventListener('click', () => {
         document.body.classList.add('printing-thermal');
         window.print();
@@ -867,139 +876,4 @@ function openConsumableModal(editId = null) {
   });
 }
 
-// ─── 50x30mm Thermal Spool Label Generator ──────────────────
-function openThermalLabelModal(filament) {
-  const qrData = `MNM:SPOOL:${filament.id}:${filament.name}:${filament.material}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=0&data=${encodeURIComponent(qrData)}`;
-  
-  let nozzleTemp = '210°C';
-  let bedTemp = '60°C';
-  const mat = (filament.material || '').toUpperCase();
-  if (mat.includes('PETG')) { nozzleTemp = '240°C'; bedTemp = '75°C'; }
-  else if (mat.includes('ABS')) { nozzleTemp = '250°C'; bedTemp = '100°C'; }
-  else if (mat.includes('TPU')) { nozzleTemp = '220°C'; bedTemp = '50°C'; }
-  else if (mat.includes('PLA')) { nozzleTemp = '215°C'; bedTemp = '60°C'; }
-
-  const spoolCode = `MNM-${(filament.id || '000000').slice(-6).toUpperCase()}`;
-
-  const body = `
-    <div class="thermal-sheet-modal">
-      <p style="font-size:0.82rem;color:var(--text-secondary);text-align:center;margin-bottom:8px;">
-        Formatted for direct output on standard <strong>50mm × 30mm (2" × 1.25")</strong> thermal label rolls (Phomemo, Niimbot, Zebra, Brother, TSC).
-      </p>
-
-      <!-- 50x30mm Label Preview Card -->
-      <div id="printable-thermal-label" class="thermal-label-card">
-        <div class="thermal-label-header">
-          <span class="thermal-label-brand">MADE N MORE LABS</span>
-          <span class="thermal-label-mat">${escapeHtml(filament.material || 'PLA+')}</span>
-        </div>
-
-        <div class="thermal-label-content">
-          <img src="${qrUrl}" alt="QR Code" class="thermal-label-qr" />
-          <div class="thermal-label-info">
-            <div class="thermal-label-color">${escapeHtml(filament.name || 'Spool')}</div>
-            <div class="thermal-label-weight">Brand: ${escapeHtml(filament.brand || 'Numakers')} • 1.0kg</div>
-            <div style="font-size:6.5pt;color:#333;margin-top:1mm;">
-              Nozzle: <strong>${nozzleTemp}</strong> | Bed: <strong>${bedTemp}</strong>
-            </div>
-            <div style="font-size:6.5pt;color:#555;">Tare Weight: ~210g</div>
-          </div>
-        </div>
-
-        <div class="thermal-label-footer">
-          <span style="font-family:monospace;letter-spacing:1px;font-weight:700;">${spoolCode}</span>
-          <span>LOT: ${new Date().toISOString().split('T')[0].replace(/-/g, '')}</span>
-        </div>
-      </div>
-
-      <div style="display:flex;gap:10px;justify-content:center;margin-top:12px;">
-        <button class="btn btn-primary" id="btn-print-thermal-action">
-          🖨️ Print Label (50x30mm)
-        </button>
-        <button class="btn btn-secondary" id="btn-copy-qr-action">
-          📋 Copy QR String
-        </button>
-      </div>
-    </div>
-  `;
-
-  showModal({
-    title: `🏷️ Spool Thermal Label (50×30mm) — ${escapeHtml(filament.name)}`,
-    body,
-    confirmText: 'Done',
-    onReady: () => {
-      document.getElementById('btn-copy-qr-action')?.addEventListener('click', () => {
-        navigator.clipboard.writeText(qrData).then(() => {
-          showToast('Copied QR payload to clipboard!', 'success');
-        });
-      });
-
-      document.getElementById('btn-print-thermal-action')?.addEventListener('click', () => {
-        const printContent = document.getElementById('printable-thermal-label')?.outerHTML || '';
-        const printWindow = window.open('', '_blank', 'width=360,height=300');
-        if (printWindow) {
-          printWindow.document.write(`
-            <html>
-              <head>
-                <title>Thermal Label - ${escapeHtml(filament.name)}</title>
-                <style>
-                  @page {
-                    size: 50mm 30mm;
-                    margin: 0;
-                  }
-                  body {
-                    margin: 0;
-                    padding: 0;
-                    background: #fff;
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                  }
-                  .thermal-label-card {
-                    width: 50mm;
-                    height: 30mm;
-                    box-sizing: border-box;
-                    padding: 2.2mm;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: space-between;
-                    background: #fff;
-                    color: #000;
-                  }
-                  .thermal-label-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    border-bottom: 0.8px solid #000;
-                    padding-bottom: 1mm;
-                  }
-                  .thermal-label-brand { font-size: 7.5pt; font-weight: 900; letter-spacing: -0.2px; }
-                  .thermal-label-mat { font-size: 7pt; font-weight: 800; background: #000; color: #fff; padding: 1px 3px; border-radius: 2px; }
-                  .thermal-label-content { display: flex; align-items: center; justify-content: space-between; gap: 2mm; margin: 1mm 0; }
-                  .thermal-label-qr { width: 14mm; height: 14mm; }
-                  .thermal-label-info { flex: 1; min-width: 0; }
-                  .thermal-label-color { font-weight: 800; font-size: 7.5pt; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-                  .thermal-label-weight { font-size: 6.5pt; color: #111; margin-top: 0.8mm; }
-                  .thermal-label-footer { display: flex; justify-content: space-between; font-size: 6pt; color: #222; border-top: 0.6px solid #000; padding-top: 0.8mm; }
-                </style>
-              </head>
-              <body>
-                ${printContent}
-                <script>
-                  window.onload = function() {
-                    window.print();
-                    setTimeout(function() { window.close(); }, 500);
-                  };
-                </script>
-              </body>
-            </html>
-          `);
-          printWindow.document.close();
-        }
-      });
-    }
-  });
-}
 
