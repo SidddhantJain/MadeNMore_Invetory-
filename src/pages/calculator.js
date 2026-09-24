@@ -186,6 +186,34 @@ export function renderCalculator(container) {
           </div>
         </div>
 
+        <!-- Tiered Volume Commercial Discount Matrix -->
+        <div class="card" style="margin-bottom:var(--space-md);">
+          <div class="card-header" style="padding-bottom:10px;">
+            <div>
+              <span class="card-title" style="font-size:0.95rem;">📊 Wholesale & Batch Volume Tiers</span>
+              <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px;">Automated scale discount matrix for client quotations</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-copy-tiered-pricing" style="font-size:0.75rem;">
+              📋 Copy Tier Table
+            </button>
+          </div>
+
+          <table class="tier-pricing-table">
+            <thead>
+              <tr>
+                <th>Qty</th>
+                <th>Discount</th>
+                <th>Unit Price</th>
+                <th>Batch Total</th>
+                <th>Lead Time</th>
+              </tr>
+            </thead>
+            <tbody id="tier-pricing-tbody">
+              <!-- Filled dynamically by calculate() -->
+            </tbody>
+          </table>
+        </div>
+
         <!-- Material Costs Reference -->
         <div class="card">
           <h3 style="margin-bottom:var(--space-md);">Material Costs Reference</h3>

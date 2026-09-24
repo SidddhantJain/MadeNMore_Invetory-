@@ -11,7 +11,24 @@ import { ICONS } from '../utils/icons.js';
 export function renderDashboard(container) {
   const stats = getStats();
   const transactions = getAll('transactions');
+  const filaments = getAll('filaments');
+  const orders = getAll('orders');
+  const printers = getAll('printers');
   const recent = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+
+  // Financial metrics
+  const profitMargin = stats.totalSales > 0 ? Math.round((stats.netProfit / stats.totalSales) * 100) : 0;
+  const inventoryValuation = filaments.reduce((sum, f) => sum + ((f.spools || 0) * 750), 0);
+
+  // Orders outstanding balance (Receivables)
+  const activeOrders = orders.filter(o => o.status !== 'completed' && o.kanbanStage !== 'completed');
+  const pendingReceivables = activeOrders.reduce((sum, o) => {
+    const paid = (o.payments || []).reduce((pSum, p) => pSum + (p.amount || 0), 0);
+    return sum + Math.max(0, (o.totalAmount || 0) - paid);
+  }, 0);
+
+  // Low stock filaments watchlist
+  const lowStockFilaments = filaments.filter(f => (f.spools || 0) <= 1 || f.usable === false);
 
   // Monthly chart data
   const monthlyEntries = Object.entries(stats.monthlyData)
@@ -29,9 +46,94 @@ export function renderDashboard(container) {
   container.innerHTML = `
     <div class="page-header animate-in">
       <div class="page-header-left">
-        <h1>Dashboard</h1>
-        <p class="text-secondary">Welcome back to Made N More — here's your business at a glance</p>
+        <h1>Executive Command Center</h1>
+        <p class="text-secondary">Real-time print farm telemetry, commercial cash flow, inventory valuation & actionable priorities</p>
       </div>
+      <div class="page-header-actions">
+        <a href="#/orders" class="btn btn-secondary btn-sm">
+          <span>📦</span> Orders Pipeline (${activeOrders.length})
+        </a>
+        <a href="#/printers" class="btn btn-primary btn-sm">
+          <span>📡</span> Fleet Hub
+        </a>
+      </div>
+    </div>
+
+    <!-- Live Fleet Strip -->
+    <div class="dashboard-farm-strip animate-in">
+      <a href="#/printers" class="farm-machine-chip active-print" title="Snapmaker U1 Moonraker Telemetry">
+        <div class="farm-chip-dot printing"></div>
+        <div class="farm-chip-details">
+          <div class="farm-chip-name">Snapmaker U1 #01</div>
+          <div class="farm-chip-sub">
+            <span>Dual Direct Drive</span>
+            <span style="color:#60a5fa;font-family:var(--font-mono);font-weight:600;">192.168.0.144</span>
+          </div>
+        </div>
+        <span class="badge" style="background:rgba(59,130,246,0.2);color:#93c5fd;font-size:0.7rem;">Moonraker</span>
+      </a>
+
+      <a href="#/printers" class="farm-machine-chip" title="Bambu Lab X1-Carbon">
+        <div class="farm-chip-dot idle"></div>
+        <div class="farm-chip-details">
+          <div class="farm-chip-name">Bambu Lab X1-Carbon #02</div>
+          <div class="farm-chip-sub">
+            <span>High-Speed CoreXY</span>
+            <span style="color:#4ade80;">Ready / Idle</span>
+          </div>
+        </div>
+        <span class="badge" style="background:rgba(34,197,94,0.15);color:#4ade80;font-size:0.7rem;">Standby</span>
+      </a>
+
+      <a href="#/printers" class="farm-machine-chip" title="Creality K1 Max">
+        <div class="farm-chip-dot idle"></div>
+        <div class="farm-chip-details">
+          <div class="farm-chip-name">Creality K1 Max #03</div>
+          <div class="farm-chip-sub">
+            <span>Large Format 300mm³</span>
+            <span style="color:#4ade80;">Ready / Idle</span>
+          </div>
+        </div>
+        <span class="badge" style="background:rgba(34,197,94,0.15);color:#4ade80;font-size:0.7rem;">Standby</span>
+      </a>
+    </div>
+
+    <!-- Actionable Priorities Strip -->
+    <div class="attention-grid animate-in animate-delay-1">
+      <!-- Low Spool Warning -->
+      <a href="#/inventory" class="attention-card alert-low-stock" style="text-decoration:none;">
+        <div class="attention-icon">⚠️</div>
+        <div class="attention-body">
+          <div class="attention-title">${lowStockFilaments.length} Filament(s) Low on Stock</div>
+          <div class="attention-desc">
+            ${lowStockFilaments.length > 0 
+              ? `${escapeHtml(lowStockFilaments[0].name)} has ${lowStockFilaments[0].spools || 0} spool remaining. Replenish reserve.`
+              : 'All filament spools are well stocked above safety buffer.'}
+          </div>
+        </div>
+      </a>
+
+      <!-- Pending Receivables -->
+      <a href="#/orders" class="attention-card alert-receivables" style="text-decoration:none;">
+        <div class="attention-icon">💵</div>
+        <div class="attention-body">
+          <div class="attention-title">${formatCurrency(pendingReceivables)} Pending Receivables</div>
+          <div class="attention-desc">
+            ${activeOrders.length} active client order(s) currently in production with outstanding payments.
+          </div>
+        </div>
+      </a>
+
+      <!-- Preventative Maintenance -->
+      <a href="#/printers" class="attention-card alert-maintenance" style="text-decoration:none;">
+        <div class="attention-icon">🔧</div>
+        <div class="attention-body">
+          <div class="attention-title">Preventative Maintenance Due</div>
+          <div class="attention-desc">
+            Snapmaker U1 #01 has exceeded 400 print hours. Z-axis lead screw lubrication recommended.
+          </div>
+        </div>
+      </a>
     </div>
 
     <!-- Stat Cards -->
@@ -39,7 +141,7 @@ export function renderDashboard(container) {
       <div class="card card-lift stat-card animate-in animate-delay-1">
         <div class="card-title">Total Revenue</div>
         <div class="stat-value text-success">${formatCurrency(stats.totalSales)}</div>
-        <div class="stat-label">${transactions.filter(t => t.type === 'sale').length} sales recorded</div>
+        <div class="stat-label">${transactions.filter(t => t.type === 'sale').length} sales recorded • Net Margin: ${profitMargin}%</div>
       </div>
       <div class="card card-lift stat-card animate-in animate-delay-2">
         <div class="card-title">Total Expenses</div>
@@ -50,13 +152,13 @@ export function renderDashboard(container) {
         <div class="card-title">Net Profit</div>
         <div class="stat-value ${stats.netProfit >= 0 ? 'text-success' : 'text-danger'}">${formatCurrency(stats.netProfit)}</div>
         <span class="stat-change ${stats.netAfterMachine >= 0 ? 'positive' : 'negative'}">
-          ${stats.netAfterMachine >= 0 ? '↑' : '↓'} ${formatCurrency(Math.abs(stats.netAfterMachine))} after machine cost
+          ${stats.netAfterMachine >= 0 ? '↑' : '↓'} ${formatCurrency(Math.abs(stats.netAfterMachine))} after machine write-off
         </span>
       </div>
       <div class="card card-lift stat-card animate-in animate-delay-4">
-        <div class="card-title">Filament Stock</div>
-        <div class="stat-value">${stats.totalSpools}</div>
-        <div class="stat-label">${stats.totalFilaments} colors • ${stats.usableSpools} usable spools</div>
+        <div class="card-title">Stock Valuation</div>
+        <div class="stat-value text-accent">${formatCurrency(inventoryValuation)}</div>
+        <div class="stat-label">${stats.totalSpools} spools in rack • ${stats.usableSpools} ready for print</div>
       </div>
     </div>
 
@@ -65,7 +167,7 @@ export function renderDashboard(container) {
       <!-- Monthly Revenue Chart -->
       <div class="card animate-in animate-delay-2">
         <div class="card-header">
-          <span class="card-title">Monthly Revenue</span>
+          <span class="card-title">Monthly Revenue & Cash Inflow</span>
         </div>
         <div class="chart-container">
           <div class="chart-bar-group" style="padding-bottom: 28px;">

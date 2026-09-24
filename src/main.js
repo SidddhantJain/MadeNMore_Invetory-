@@ -4,8 +4,8 @@
  */
 
 import './styles/main.css';
-import { initStore, undo, search } from './data/store.js';
-import { seedDatabase } from './data/seed.js';
+import { initStore, undo, search, getSettings, create } from './data/store.js';
+import { seedDatabase, MATERIAL_TYPES } from './data/seed.js';
 import { renderDashboard } from './pages/dashboard.js';
 import { renderInventory } from './pages/inventory.js';
 import { renderOrders } from './pages/orders.js';
@@ -14,9 +14,11 @@ import { renderTransactions } from './pages/transactions.js';
 import { renderCalculator } from './pages/calculator.js';
 import { renderSettings } from './pages/settings.js';
 import { showToast } from './components/toast.js';
-import { showModal } from './components/modal.js';
+import { showModal, closeModal } from './components/modal.js';
 import { ICONS } from './utils/icons.js';
-import { debounce, escapeHtml } from './utils/helpers.js';
+import { debounce, escapeHtml, formatCurrency } from './utils/helpers.js';
+import { openTareCalculatorModal } from './utils/tareCalculator.js';
+import { fetchPrinterTelemetry } from './services/moonrakerService.js';
 
 // ─── Routes ─────────────────────────────────────────────────
 const ROUTES = [
@@ -65,6 +67,246 @@ function openLANServerModal() {
       });
     },
   });
+}
+
+// ─── Global Fast Quoter Modal ──────────────────────────────
+function openQuickQuoteModal() {
+  const settings = getSettings();
+  let quoteData = {
+    name: 'Quick 3D Prototype',
+    material: 'PLA+',
+    weight: 60,
+    hours: 2.5,
+    markup: 30,
+    total: 0
+  };
+
+  function computeQuote() {
+    const costPerKg = (settings.materialCosts && settings.materialCosts[quoteData.material]) || 700;
+    const materialCost = (quoteData.weight / 1000) * costPerKg;
+    const electricityCost = quoteData.hours * 0.35 * (settings.electricityRate || 8.5);
+    const machineWear = quoteData.hours * 25; // ₹25/hr depreciation & maintenance reserve
+    const baseCost = materialCost + electricityCost + machineWear;
+    const finalPrice = Math.round(baseCost * (1 + quoteData.markup / 100));
+    const profit = finalPrice - baseCost;
+
+    quoteData.total = finalPrice;
+    return { materialCost, electricityCost, machineWear, baseCost, finalPrice, profit };
+  }
+
+  function updateOutput() {
+    const res = computeQuote();
+    const outEl = document.getElementById('qq-output-container');
+    if (!outEl) return;
+
+    outEl.innerHTML = `
+      <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:0.84rem;color:var(--text-secondary);">
+          <span>Material Cost (${quoteData.weight}g ${quoteData.material}):</span>
+          <span style="font-weight:600;color:var(--text-primary);">${formatCurrency(res.materialCost)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:0.84rem;color:var(--text-secondary);">
+          <span>Power & Wear (${quoteData.hours}h):</span>
+          <span style="font-weight:600;color:var(--text-primary);">${formatCurrency(res.electricityCost + res.machineWear)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:0.84rem;color:var(--text-secondary);">
+          <span>Net Margin (${quoteData.markup}%):</span>
+          <span style="font-weight:600;color:#4ade80;">+${formatCurrency(res.profit)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:10px;margin-top:6px;">
+          <span style="font-weight:700;font-size:0.95rem;color:var(--text-primary);">Total Client Price:</span>
+          <span style="font-size:1.35rem;font-weight:800;color:#fff;background:linear-gradient(135deg,#38bdf8,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+            ${formatCurrency(res.finalPrice)}
+          </span>
+        </div>
+      </div>
+    `;
+  }
+
+  showModal({
+    title: '⚡ Fast Commercial 3D Print Quoter',
+    body: `
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Part / Reference Name</label>
+            <input class="form-input" id="qq-part-name" value="${quoteData.name}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Material</label>
+            <select class="form-select" id="qq-material">
+              ${MATERIAL_TYPES.map(m => `<option value="${m}" ${m === quoteData.material ? 'selected' : ''}>${m}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Part Weight (grams)</label>
+            <input class="form-input" type="number" id="qq-weight" min="1" step="1" value="${quoteData.weight}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Print Time (hours)</label>
+            <input class="form-input" type="number" id="qq-hours" min="0.25" step="0.25" value="${quoteData.hours}" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <label class="form-label" style="margin:0;">Target Margin (%)</label>
+            <span id="qq-markup-label" style="font-size:0.8rem;font-weight:700;color:var(--accent);">${quoteData.markup}%</span>
+          </div>
+          <input class="form-input" type="range" id="qq-markup" min="10" max="150" step="5" value="${quoteData.markup}" />
+        </div>
+
+        <div id="qq-output-container"></div>
+
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary flex-1" id="btn-qq-copy-wa">
+            📋 Copy WhatsApp Text
+          </button>
+          <button class="btn btn-primary flex-1" id="btn-qq-create-order">
+            🚀 Save as Order
+          </button>
+        </div>
+      </div>
+    `,
+    confirmText: 'Done',
+    onReady: () => {
+      updateOutput();
+
+      const nameInput = document.getElementById('qq-part-name');
+      const matSelect = document.getElementById('qq-material');
+      const weightInput = document.getElementById('qq-weight');
+      const hoursInput = document.getElementById('qq-hours');
+      const markupInput = document.getElementById('qq-markup');
+      const markupLabel = document.getElementById('qq-markup-label');
+
+      const rebind = () => {
+        quoteData.name = nameInput?.value || 'Quick 3D Prototype';
+        quoteData.material = matSelect?.value || 'PLA+';
+        quoteData.weight = parseFloat(weightInput?.value) || 0;
+        quoteData.hours = parseFloat(hoursInput?.value) || 0;
+        quoteData.markup = parseFloat(markupInput?.value) || 30;
+        if (markupLabel) markupLabel.textContent = `${quoteData.markup}%`;
+        updateOutput();
+      };
+
+      nameInput?.addEventListener('input', rebind);
+      matSelect?.addEventListener('change', rebind);
+      weightInput?.addEventListener('input', rebind);
+      hoursInput?.addEventListener('input', rebind);
+      markupInput?.addEventListener('input', rebind);
+
+      document.getElementById('btn-qq-copy-wa')?.addEventListener('click', () => {
+        const text = `*Made N More 3D Printing Quote*\n` +
+          `──────────────────────────\n` +
+          `📦 *Item:* ${quoteData.name}\n` +
+          `🧵 *Material:* ${quoteData.material}\n` +
+          `⚖️ *Estimated Weight:* ${quoteData.weight}g\n` +
+          `⏱️ *Print Duration:* ~${quoteData.hours} hours\n` +
+          `💵 *Commercial Quote:* ${formatCurrency(quoteData.total)}\n` +
+          `⚡ *Lead Time:* 24-48 Business Hours\n` +
+          `──────────────────────────\n` +
+          `_Precision Manufactured at Made N More Labs_`;
+
+        navigator.clipboard.writeText(text).then(() => {
+          showToast('Copied WhatsApp Quote to clipboard!', 'success');
+        });
+      });
+
+      document.getElementById('btn-qq-create-order')?.addEventListener('click', () => {
+        create('orders', {
+          clientName: 'Direct Quote Client',
+          phone: '',
+          date: new Date().toISOString().split('T')[0],
+          deadline: '',
+          notes: `Fast Quote for ${quoteData.name} (${quoteData.weight}g, ${quoteData.material})`,
+          status: 'quote',
+          kanbanStage: 'quote',
+          priority: 'standard',
+          items: [{
+            name: quoteData.name,
+            material: quoteData.material,
+            color: 'Default',
+            quantity: 1,
+            unitPrice: quoteData.total,
+            subtotal: quoteData.total,
+          }],
+          subtotal: quoteData.total,
+          taxPercent: 0,
+          taxAmount: 0,
+          shippingCost: 0,
+          totalAmount: quoteData.total,
+          payments: [],
+        });
+
+        closeModal();
+        showToast('Created Draft Order from Quote!', 'success');
+        window.location.hash = '#/orders';
+      });
+    }
+  });
+}
+
+// ─── Executive Top Header ──────────────────────────────────
+function renderTopHeader() {
+  const header = document.getElementById('top-header');
+  if (!header) return;
+
+  header.innerHTML = `
+    <div class="top-header-left">
+      <div class="top-search-trigger" id="top-search-btn" title="Global Search (Ctrl+K)">
+        <span style="font-size:0.95rem;display:flex;align-items:center;">${ICONS.search || '🔍'}</span>
+        <span>Search filaments, jobs, orders, spools...</span>
+        <span class="top-search-kbd">Ctrl+K</span>
+      </div>
+    </div>
+
+    <div class="top-header-center">
+      <a href="#/printers" class="top-fleet-pill" id="top-fleet-telemetry-pill" title="Click to view Fleet Hub">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;box-shadow:0 0 8px #3b82f6;"></span>
+        <span style="font-weight:700;">Snapmaker U1:</span>
+        <span id="top-printer-status-text">Online • 192.168.0.144</span>
+      </a>
+    </div>
+
+    <div class="top-header-right">
+      <button class="top-action-btn primary" id="btn-quick-quote-header" title="Instant Part Price Estimator">
+        <span style="font-size:1rem;">⚡</span>
+        <span>Quick Quote</span>
+      </button>
+
+      <button class="top-action-btn" id="btn-header-new-order" title="Create New Client Order">
+        <span style="font-size:1rem;">📦</span>
+        <span>New Order</span>
+      </button>
+
+      <button class="top-action-btn" id="btn-header-tare-scale" title="Tare Digital Scale for Spool">
+        <span style="font-size:1rem;">⚖️</span>
+        <span>Tare Scale</span>
+      </button>
+
+      <button class="top-action-btn" id="btn-header-lan-qr" title="Mobile/Tablet QR Access">
+        <span style="font-size:1rem;">📱</span>
+        <span>LAN</span>
+      </button>
+    </div>
+  `;
+
+  // Bind click handlers
+  header.querySelector('#top-search-btn')?.addEventListener('click', showGlobalSearch);
+  header.querySelector('#btn-quick-quote-header')?.addEventListener('click', openQuickQuoteModal);
+  header.querySelector('#btn-header-new-order')?.addEventListener('click', () => {
+    window.location.hash = '#/orders';
+    setTimeout(() => {
+      document.getElementById('btn-new-order')?.click();
+    }, 200);
+  });
+  header.querySelector('#btn-header-tare-scale')?.addEventListener('click', () => {
+    openTareCalculatorModal(null, () => navigate());
+  });
+  header.querySelector('#btn-header-lan-qr')?.addEventListener('click', openLANServerModal);
 }
 
 // ─── Sidebar ────────────────────────────────────────────────
@@ -298,6 +540,9 @@ async function init() {
   // Initialize data store from REST API
   await initStore();
 
+  // Render executive top header
+  renderTopHeader();
+
   // Render sidebar
   renderSidebar();
 
@@ -309,6 +554,34 @@ async function init() {
   // Keyboard shortcuts
   initKeyboardShortcuts();
 
+  // Periodically refresh header printer telemetry
+  async function refreshHeaderTelemetry() {
+    try {
+      const data = await fetchPrinterTelemetry('192.168.0.144', 80);
+      const textEl = document.getElementById('top-printer-status-text');
+      const pill = document.getElementById('top-fleet-telemetry-pill');
+      if (textEl && data) {
+        if (data.online) {
+          const ext = Math.round(data.extruderTemp || 0);
+          const bed = Math.round(data.bedTemp || 0);
+          const state = data.printState || 'Online';
+          textEl.textContent = `${state} (${ext}°C / ${bed}°C)`;
+          if (pill) {
+            pill.style.borderColor = data.printState === 'printing' ? 'rgba(59, 130, 246, 0.5)' : 'rgba(34, 197, 94, 0.4)';
+          }
+        } else {
+          textEl.textContent = '192.168.0.144 (Standby)';
+        }
+      }
+    } catch {
+      // Ignore background telemetry errors
+    }
+  }
+
+  // Initial check & interval every 15s
+  refreshHeaderTelemetry();
+  setInterval(refreshHeaderTelemetry, 15000);
+
   console.log('%c Made N More %c v1.0 ', 
     'background: linear-gradient(135deg, #8b5cf6, #06b6d4); color: white; padding: 4px 8px; border-radius: 4px 0 0 4px; font-weight: bold;',
     'background: #1a1a2e; color: #8b5cf6; padding: 4px 8px; border-radius: 0 4px 4px 0;'
@@ -316,3 +589,4 @@ async function init() {
 }
 
 init();
+
