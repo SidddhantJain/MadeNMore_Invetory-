@@ -549,7 +549,7 @@ app.get('/api/printer/telemetry', async (req, res) => {
   const port = req.query.port || 80;
   const host = port == 80 ? ip : `${ip}:${port}`;
   try {
-    const r = await fetch(`http://${host}/printer/objects/query?extruder&heater_bed&print_stats&virtual_sdcard`, {
+    const r = await fetch(`http://${host}/printer/objects/query?extruder&heater_bed&fan&toolhead&print_stats&virtual_sdcard&display_status`, {
       signal: AbortSignal.timeout(3000)
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -557,6 +557,94 @@ app.get('/api/printer/telemetry', async (req, res) => {
     res.json(data);
   } catch (err) {
     res.status(502).json({ error: err.message, online: false });
+  }
+});
+
+app.post('/api/printer/gcode', async (req, res) => {
+  const ip = req.query.ip || req.body.ip || '192.168.0.144';
+  const port = req.query.port || req.body.port || 80;
+  const script = req.body.script || req.query.script;
+  const host = port == 80 ? ip : `${ip}:${port}`;
+
+  if (!script) return res.status(400).json({ error: 'Missing script parameter' });
+
+  try {
+    const r = await fetch(`http://${host}/printer/gcode/script`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ script }),
+      signal: AbortSignal.timeout(6000)
+    });
+    const text = await r.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = { result: text }; }
+    res.status(r.status).json(data);
+  } catch (err) {
+    res.status(502).json({ error: err.message, success: false });
+  }
+});
+
+app.post('/api/printer/pause', async (req, res) => {
+  const ip = req.query.ip || req.body.ip || '192.168.0.144';
+  const port = req.query.port || req.body.port || 80;
+  const host = port == 80 ? ip : `${ip}:${port}`;
+  try {
+    const r = await fetch(`http://${host}/printer/print/pause`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(4000)
+    });
+    const data = await r.json();
+    res.json(data);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.post('/api/printer/resume', async (req, res) => {
+  const ip = req.query.ip || req.body.ip || '192.168.0.144';
+  const port = req.query.port || req.body.port || 80;
+  const host = port == 80 ? ip : `${ip}:${port}`;
+  try {
+    const r = await fetch(`http://${host}/printer/print/resume`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(4000)
+    });
+    const data = await r.json();
+    res.json(data);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.post('/api/printer/cancel', async (req, res) => {
+  const ip = req.query.ip || req.body.ip || '192.168.0.144';
+  const port = req.query.port || req.body.port || 80;
+  const host = port == 80 ? ip : `${ip}:${port}`;
+  try {
+    const r = await fetch(`http://${host}/printer/print/cancel`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(4000)
+    });
+    const data = await r.json();
+    res.json(data);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.post('/api/printer/emergency_stop', async (req, res) => {
+  const ip = req.query.ip || req.body.ip || '192.168.0.144';
+  const port = req.query.port || req.body.port || 80;
+  const host = port == 80 ? ip : `${ip}:${port}`;
+  try {
+    const r = await fetch(`http://${host}/printer/emergency_stop`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(3000)
+    });
+    const data = await r.json();
+    res.json(data);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
   }
 });
 
@@ -575,6 +663,66 @@ app.get('/api/printer/files', async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: err.message, result: [] });
   }
+});
+
+app.get('/api/printer/gcode_files', async (req, res) => {
+  const ip = req.query.ip || '192.168.0.144';
+  const port = req.query.port || 80;
+  const host = port == 80 ? ip : `${ip}:${port}`;
+  try {
+    const r = await fetch(`http://${host}/server/files/list?root=gcodes`, {
+      signal: AbortSignal.timeout(4000)
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    res.json(data);
+  } catch (err) {
+    res.status(502).json({ error: err.message, result: [] });
+  }
+});
+
+app.post('/api/printer/print/start', async (req, res) => {
+  const ip = req.query.ip || req.body.ip || '192.168.0.144';
+  const port = req.query.port || req.body.port || 80;
+  const filename = req.query.filename || req.body.filename;
+  const host = port == 80 ? ip : `${ip}:${port}`;
+
+  if (!filename) return res.status(400).json({ error: 'Missing filename parameter' });
+
+  try {
+    const r = await fetch(`http://${host}/printer/print/start?filename=${encodeURIComponent(filename)}`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(4000)
+    });
+    const data = await r.json();
+    res.json(data);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.get('/api/printer/camera/snapshot', async (req, res) => {
+  const ip = req.query.ip || '192.168.0.144';
+  const port = req.query.port || 80;
+  const urls = [
+    `http://${ip}/webcam/?action=snapshot`,
+    `http://${ip}:8080/?action=snapshot`,
+    `http://${ip}/server/files/camera/snapshot.jpg`
+  ];
+
+  for (const u of urls) {
+    try {
+      const r = await fetch(u, { signal: AbortSignal.timeout(2500) });
+      if (r.ok) {
+        const buffer = await r.arrayBuffer();
+        res.set('Content-Type', r.headers.get('content-type') || 'image/jpeg');
+        return res.send(Buffer.from(buffer));
+      }
+    } catch {
+      // try next
+    }
+  }
+  res.status(502).send('Camera offline');
 });
 
 

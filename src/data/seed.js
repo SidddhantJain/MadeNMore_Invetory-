@@ -453,6 +453,55 @@ export const CONSUMABLES_SEED = [
   },
 ];
 
+/** Financial Accounts & Treasury Seed */
+export const ACCOUNTS_SEED = [
+  {
+    id: 'acc1',
+    name: 'HDFC Bank — Current Account',
+    type: 'bank',
+    institution: 'HDFC Bank Ltd (Commercial)',
+    accountNumber: '•••• 5592',
+    ifsc: 'HDFC0001813',
+    openingBalance: 45000,
+    status: 'active',
+    isPrimary: true,
+    notes: 'Primary workshop operating account for client RTGS/NEFT receipts, GST remittances, and vendor payments.'
+  },
+  {
+    id: 'acc2',
+    name: 'Workshop UPI (GPay / Paytm Business)',
+    type: 'upi',
+    institution: 'NPCI / UPI Merchant Gateway',
+    accountNumber: 'madenmore@hdfcbank',
+    openingBalance: 12850,
+    status: 'active',
+    isPrimary: false,
+    notes: 'Direct QR payments for quick prototypes, walk-in design commissions, and instant order advances.'
+  },
+  {
+    id: 'acc3',
+    name: 'Workshop Cash Drawer (Petty Cash)',
+    type: 'cash',
+    institution: 'Physical Cash Drawer',
+    accountNumber: 'Drawer Bay 1',
+    openingBalance: 3500,
+    status: 'active',
+    isPrimary: false,
+    notes: 'Local hardware store purchases (IPA, brass inserts, nozzles, acetone), courier COD, and shop expenses.'
+  },
+  {
+    id: 'acc4',
+    name: 'Machine Depreciation & Sinking Reserve',
+    type: 'reserve',
+    institution: 'Internal Capital Reserve',
+    accountNumber: 'SINKING-RESERVE-01',
+    openingBalance: 18500,
+    status: 'active',
+    isPrimary: false,
+    notes: 'Hardware wear amortization reserve funded at ₹25/print hour for Snapmaker U1 maintenance & farm expansion.'
+  }
+];
+
 /** Seed the database with initial data */
 export function seedDatabase() {
   const seeded = isSeeded();
@@ -483,6 +532,11 @@ export function seedDatabase() {
       create('consumables', c);
     });
 
+    // Seed accounts
+    ACCOUNTS_SEED.forEach(a => {
+      create('accounts', a);
+    });
+
     markSeeded();
     return true;
   }
@@ -492,6 +546,14 @@ export function seedDatabase() {
   if (!existingConsumables || existingConsumables.length === 0) {
     CONSUMABLES_SEED.forEach(c => {
       create('consumables', c);
+    });
+  }
+
+  // If already seeded previously but accounts collection is empty, populate it
+  const existingAccounts = getAll('accounts');
+  if (!existingAccounts || existingAccounts.length === 0) {
+    ACCOUNTS_SEED.forEach(a => {
+      create('accounts', a);
     });
   }
 

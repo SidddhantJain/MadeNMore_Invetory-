@@ -17,6 +17,7 @@ let _cache = {
   orders: [],
   printers: [],
   consumables: [],
+  accounts: [],
   settings: {
     machineCost: 55000,
     electricityRate: 8.5,
@@ -95,6 +96,7 @@ export async function initStore() {
         orders: allData.orders || [],
         printers: allData.printers || [],
         consumables: allData.consumables || [],
+        accounts: allData.accounts || [],
         settings: allData.settings || _cache.settings,
         _seeded: allData._seeded !== undefined ? allData._seeded : true
       };
@@ -116,6 +118,7 @@ export async function initStore() {
             orders: fresh.orders || [],
             printers: fresh.printers || [],
             consumables: fresh.consumables || [],
+            accounts: fresh.accounts || [],
             settings: fresh.settings || _cache.settings,
             _seeded: fresh._seeded !== undefined ? fresh._seeded : true
           };
@@ -190,6 +193,9 @@ export function getStats() {
     if (t.type === 'expense') monthlyData[month].expenses += t.amount || 0;
   });
 
+  const accounts = _cache.accounts || [];
+  const totalLiquidCapital = accounts.reduce((sum, a) => sum + getAccountBalance(a.id).balance, 0);
+
   return {
     totalSales,
     totalExpenses,
@@ -198,9 +204,113 @@ export function getStats() {
     totalSpools,
     usableSpools,
     totalFilaments: filaments.length,
+    totalLiquidCapital,
     materialBreakdown,
     monthlyData
   };
+}
+
+/** Calculate actual reconciled balance for a financial account */
+export function getAccountBalance(accountId) {
+  const account = (_cache.accounts || []).find(a => String(a.id) === String(accountId));
+  if (!account) return { balance: 0, totalInflow: 0, totalOutflow: 0, openingBalance: 0 };
+
+  const opening = parseFloat(account.openingBalance) || 0;
+  const isPrimary = account.isPrimary || account.id === 'acc1';
+  const transactions = _cache.transactions || [];
+  const orders = _cache.orders || [];
+
+  // Inflows:
+  // 1. Transactions of type 'sale' assigned to this account, or unassigned fallback to primary
+  const saleTx = transactions
+    .filter(t => t.type === 'sale' && (t.accountId === accountId || (!t.accountId && isPrimary)))
+    .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+
+  // 2. Order Payments assigned to this account
+  const orderPayments = orders
+    .flatMap(o => o.payments || [])
+    .filter(p => p.accountId === accountId || (!p.accountId && isPrimary))
+    .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+  // 3. Internal transfers IN
+  const transfersIn = transactions
+    .filter(t => t.type === 'transfer' && t.toAccountId === accountId)
+    .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+
+  // 4. Manual adjustments IN
+  const adjustmentsIn = transactions
+    .filter(t => t.type === 'adjustment' && t.accountId === accountId && (t.amount || 0) > 0)
+    .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+
+  const totalInflow = saleTx + orderPayments + transfersIn + adjustmentsIn;
+
+  // Outflows:
+  // 1. Transactions of type 'expense' assigned to this account
+  const expenseTx = transactions
+    .filter(t => t.type === 'expense' && (t.accountId === accountId || (!t.accountId && isPrimary)))
+    .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+
+  // 2. Internal transfers OUT
+  const transfersOut = transactions
+    .filter(t => t.type === 'transfer' && t.fromAccountId === accountId)
+    .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+
+  // 3. Manual adjustments OUT
+  const adjustmentsOut = transactions
+    .filter(t => t.type === 'adjustment' && t.accountId === accountId && (t.amount || 0) < 0)
+    .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0);
+
+  const totalOutflow = expenseTx + transfersOut + adjustmentsOut;
+  const currentBalance = opening + totalInflow - totalOutflow;
+
+  return {
+    balance: currentBalance,
+    totalInflow,
+    totalOutflow,
+    openingBalance: opening,
+    account
+  };
+}
+
+/** Transfer funds between two financial accounts */
+export async function transferBetweenAccounts(fromId, toId, amount, notes = '') {
+  const fromAcc = getById('accounts', fromId);
+  const toAcc = getById('accounts', toId);
+  const amt = parseFloat(amount) || 0;
+  if (!fromAcc || !toAcc || amt <= 0) return null;
+
+  const desc = notes || `Transfer from ${fromAcc.name} to ${toAcc.name}`;
+  const tx = await create('transactions', {
+    date: new Date().toISOString().split('T')[0],
+    type: 'transfer',
+    category: 'Transfer',
+    fromAccountId: fromId,
+    toAccountId: toId,
+    amount: amt,
+    description: desc,
+  });
+
+  return tx;
+}
+
+/** Reconcile account balance with manual adjustment */
+export async function reconcileAccountBalance(accountId, verifiedBalance, notes = '') {
+  const stats = getAccountBalance(accountId);
+  const verified = parseFloat(verifiedBalance) || 0;
+  const discrepancy = verified - stats.balance;
+
+  if (Math.abs(discrepancy) < 0.01) return null;
+
+  const tx = await create('transactions', {
+    date: new Date().toISOString().split('T')[0],
+    type: 'adjustment',
+    category: 'Reconciliation',
+    accountId: accountId,
+    amount: discrepancy,
+    description: notes || `Statement Reconciliation Discrepancy Adjustment (${discrepancy >= 0 ? '+' : ''}${discrepancy})`,
+  });
+
+  return tx;
 }
 
 /** CRUD Mutations (synchronously updates cache, asynchronously persists to API) */

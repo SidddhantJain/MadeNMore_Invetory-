@@ -4,13 +4,14 @@
  */
 
 import './styles/main.css';
-import { initStore, undo, search, getSettings, create } from './data/store.js';
+import { initStore, undo, search, getSettings, create, getStats } from './data/store.js';
 import { seedDatabase, MATERIAL_TYPES } from './data/seed.js';
 import { renderDashboard } from './pages/dashboard.js';
 import { renderInventory } from './pages/inventory.js';
 import { renderOrders } from './pages/orders.js';
 import { renderPrinters } from './pages/printers.js';
 import { renderTransactions } from './pages/transactions.js';
+import { renderAccounts } from './pages/accounts.js';
 import { renderCalculator } from './pages/calculator.js';
 import { renderSettings } from './pages/settings.js';
 import { showToast } from './components/toast.js';
@@ -27,6 +28,7 @@ const ROUTES = [
   { hash: '#/orders',        label: 'Orders',       icon: 'order',        render: renderOrders,       section: 'main' },
   { hash: '#/printers',      label: 'Printers',     icon: 'printer',      render: renderPrinters,     section: 'main' },
   { hash: '#/transactions',  label: 'Transactions', icon: 'transactions', render: renderTransactions, section: 'main' },
+  { hash: '#/accounts',      label: 'Treasury & Accounts', icon: 'account', render: renderAccounts,   section: 'main' },
   { hash: '#/calculator',    label: 'Calculator',   icon: 'calculator',   render: renderCalculator,   section: 'tools' },
   { hash: '#/settings',      label: 'Settings',     icon: 'settings',     render: renderSettings,     section: 'system' },
 ];
@@ -272,6 +274,11 @@ function renderTopHeader() {
     </div>
 
     <div class="top-header-right">
+      <a href="#/accounts" class="top-action-btn" id="btn-header-treasury" title="Workshop Liquid Treasury & Cash" style="text-decoration:none;">
+        <span style="font-size:1rem;">💰</span>
+        <span style="font-weight:700;" id="top-treasury-val">${formatCurrency(getStats().totalLiquidCapital || 0)}</span>
+      </a>
+
       <button class="top-action-btn primary" id="btn-quick-quote-header" title="Instant Part Price Estimator">
         <span style="font-size:1rem;">⚡</span>
         <span>Quick Quote</span>

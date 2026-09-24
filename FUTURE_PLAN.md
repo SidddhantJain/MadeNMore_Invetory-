@@ -1,8 +1,8 @@
 # 🗺️ Made N More & 3D Printing Labs — Master Strategic Roadmap & Industrial OS Blueprint
 ### The Next-Generation Manufacturing Executive System (MES) & Farm Scaling Engine
-**Document Version:** 5.0 (Industrial Enterprise & Operator Command Center)  
+**Document Version:** 6.0 (Active Workshop Suite & Strategic Horizons)  
 **Target Operator:** Business Owner, Farm Manager & Production Technicians  
-**Core Purpose:** Automate all administrative, quoting, hardware telemetry, material tracking, and financial overhead so the owner can scale from 4 machines to 20+ machines with zero added managerial friction.
+**Core Purpose:** Automate all administrative, quoting, hardware telemetry, material tracking, and banking overhead so the owner can operate the workshop with zero friction and maximum profitability.
 
 ---
 
@@ -45,7 +45,9 @@ graph TB
 
 ---
 
-## 🗓️ Master Phased Roadmap: From Workshop to Industrial Digital Factory
+## 🗓️ Master Phased Roadmap
+
+### 🟢 Immediate Workshop Operational Horizons (Phases 1 – 4: Active & Production Ready)
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
@@ -58,72 +60,85 @@ graph TB
                                     │
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 2 (Delivered): Multiple 3D Printer Farm, LAN Fleet Hub & Timelapse Archiver     │
+│ PHASE 2 (Delivered): Snapmaker U1 Moonraker / Klipper Full Control Suite & Farm Hub    │
 │ • Snapmaker U1 Direct LAN Moonraker Bridge (live nozzle/bed telemetry, port 80)        │
 │ • Server-Side Proxy Fallback: Zero CORS restrictions across LAN/Wi-Fi devices          │
-│ • Real-time status cards (Snapmaker U1, Voron CoreXY, Bambu Lab P1S, Ender Plus)       │
-│ • Live Chamber/Bed/Nozzle thermal telemetry with target vs actual gauges               │
-│ • Timelapse Video Streamer & Bulk Downloader: 1-Click sequential download of all .mp4s │
-│ • Fleet status filter pills (All Machines, 🟢 Printing, 🟡 Idle/Ready, 🔴 Maintenance) │
-│ • Operating hours odometer & preventative maintenance alerts (nozzles, rails, belts)   │
+│ • Interactive Jog D-Pad (0.1, 1, 10, 50, 100mm steps), Z-lift column, and Home controls│
+│ • Emergency Stop M112: Instant halt for all heaters and motion steppers                │
+│ • Thermal & Extrusion Center: Target temp sliders, PLA/PETG/ABS presets, fan speed     │
+│ • Filament Feed Drive: Extrude 10mm/50mm (purge) and Retract 10mm/50mm (unload)        │
+│ • Interactive G-Code Terminal Console: Command history, macro chips, live response log │
+│ • Virtual SDCard File Launcher: List gcodes on printer storage with 1-click start job  │
+│ • Live Camera Snapshot & Timelapse MP4 Bulk Downloader with sequential progress        │
 └────────────────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 3 (Delivered): Operator Support Tools, Slicer Ingestion & QC Job Travelers      │
-│ • In-Browser G-Code, 3MF & STL parser: Drag & drop sliced files to auto-read mass/time │
-│ • 1-Click WhatsApp Milestone Quote Generator with deposit & QC dispatch terms          │
+│ PHASE 3 (Delivered): Multi-Account Treasury & Banking Suite                           │
+│ • Actual Real-World Account Balances: Current A/c, Workshop UPI, Cash Drawer, Sinking  │
+│ • Inter-Account Funds Transfer modal with balance validation and audit trail           │
+│ • Bank Statement Reconciliation modal: Quick adjust to match physical statement        │
+│ • Executive Treasury Ribbon: Total Liquid Capital, Inflows, Outflows, and Net Cash Flow│
+│ • Chronological Treasury Ledger: Categorized audit log with receipt and invoice tags   │
+│ • Executive top bar liquid balance badge for continuous cash visibility                │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ PHASE 4 (Current Operational Priority): Workshop Spool Tare & Physical Lab Logistics   │
+│ • Digital Scale Spool Tare Tool: Exact usable filament calculation subtracting spool   │
 │ • Printable Workshop Job Traveler Card (📋): A4 QC checklist & router for shop floor   │
 │ • Zero-Touch Spool Deduction: Auto-decrements grams on print complete                  │
 │ • Scrap Loss & Failed Print Logger: Deducts wasted filament and logs ledger loss       │
-│ • Digital Scale Tare Tool: Exact usable filament calculation subtracting spool tare    │
-└────────────────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 4 (Active Upgrade): Warehouse Materials Barcode/QR Management & Consumables      │
 │ • Thermal QR Label Generation (50x30mm) for spool storage racks and bin organization   │
 │ • Workshop hardware tracking: Brass heat-set inserts (M2–M5), high-flow nozzles, IPA   │
-│ • Live inventory valuation (Total raw material worth in INR on dashboard)              │
-│ • Automated low-spool threshold replenishment notifications (< 200g buffer)            │
-│ • Multi-spool batch weight auditor using gross digital scale tare calculation          │
 └────────────────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
+```
+
+---
+
+### 🔭 Distant Strategic Horizons (Phases 5 – 8: Long-Term Growth Plans)
+> **Note on Phases 5 to 8:** These phases represent long-term strategic enhancements planned for when the fleet scales to 8+ machines and team size expands beyond direct operator oversight.
+
+```text
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 5 (Next Priority): Deep Financial Intelligence & Cost Accounting Engine          │
+│ PHASE 5 (Distant Plan): Deep Financial Intelligence & Cost Accounting Engine           │
 │ • Granular Job Costing Breakdown: Material + Electricity + Machine Wear + Labor Buffer │
 │ • Multi-Tier Volume Discount Matrix (1, 5, 10, 25, 50 pcs with price-per-part curves) │
 │ • Monthly automated Profit & Loss statements (Gross Sales vs Material vs Power vs Net) │
 │ • Machine depreciation & wear reserves allocation (amortizing ₹55,000 capital asset)   │
 │ • Material consumption forecasting (reorder alerts before peak production runs dry)    │
+│ • Suggested Addition: Automated GST filing export (GSTR-1 summary for CA/accountant)   │
 └────────────────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 6: Automated Quotation Engine, Geometry DFM Analyzer & Slicing AI                │
+│ PHASE 6 (Distant Plan): Automated Quotation Engine, Geometry DFM Analyzer & Slicing AI │
 │ • Direct STL Geometry analysis (bounding box, surface area, volume, mass estimate)     │
 │ • Design For Manufacturability (DFM) warnings: minimum wall thickness, overhang angles │
 │ • Material Recommendation Engine (e.g. recommending PETG-HS over PLA for outdoors)    │
 │ • 1-Click Formal Commercial PDF Proforma Quotation with custom B2B terms               │
+│ • Suggested Addition: OrcaSlicer / PrusaSlicer headless remote slicing CLI worker      │
 └────────────────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 7: Autonomous Farm Scheduler, Auto-Preheat Dispatcher & Klipper Queue Daemon     │
+│ PHASE 7 (Distant Plan): Autonomous Farm Scheduler & Klipper Queue Daemon               │
 │ • Centralized Print Queue Dispatcher: Automatically routes queued jobs to idle printer │
 │ • Auto-Preheat on Job Assignment: Wakes up bed/nozzle heaters 5 minutes prior to print │
 │ • Print Bed Ejection / Conveyor support for continuous unattended batch production     │
 │ • Multi-printer power load balancer (prevents tripping workshop breaker during heatup) │
+│ • Suggested Addition: AI-powered optical failure detection via webcam (spaghetti/blob) │
 └────────────────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 8 (Enterprise Scaling): B2B Client Portal & Secure File Vault                    │
+│ PHASE 8 (Distant Plan): Enterprise Scaling, B2B Client Portal & Secure File Vault      │
 │ • Private white-labeled client link: Clients can upload CAD files under mutual NDA     │
 │ • Live stage tracker without revealing internal machine IPs or farm secrets            │
 │ • Instant re-order button for previously verified production batches                   │
 │ • Automated delivery note & courier tracking integration (Shiprocket / Bluedart)       │
+│ • Suggested Addition: Multi-tenant workshop permissions (Technician vs Owner view)     │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 

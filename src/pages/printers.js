@@ -11,7 +11,24 @@ import { showToast } from '../components/toast.js';
 import { PRINTER_SEED } from '../data/seed.js';
 import { openTareCalculatorModal } from '../utils/tareCalculator.js';
 import { readSlicerFile } from '../utils/slicerParser.js';
-import { fetchPrinterTelemetry, fetchLatestSnapshot, scanLocalSubnet, fetchAllCameraMedia } from '../services/moonrakerService.js';
+import {
+  fetchPrinterTelemetry,
+  fetchLatestSnapshot,
+  scanLocalSubnet,
+  fetchAllCameraMedia,
+  sendGcodeCommand,
+  pausePrint,
+  resumePrint,
+  cancelPrint,
+  emergencyStop,
+  setTargetHotendTemp,
+  setTargetBedTemp,
+  setFanSpeed,
+  jogAxis,
+  extrudeRetract,
+  fetchGcodeFiles,
+  startGcodePrint,
+} from '../services/moonrakerService.js';
 
 let _telemetryActive = false;
 let _telemetryTimer = null;
@@ -56,6 +73,10 @@ function render(container) {
         <p class="text-secondary">Direct physical machine telemetry, camera snapshots, and automated inventory sync</p>
       </div>
       <div class="page-header-actions">
+        <button class="btn btn-secondary" id="btn-snapmaker-console" title="Open Snapmaker U1 Klipper Controls & G-Code Console">
+          <span style="font-size:1.05rem;">🎮</span>
+          Klipper Command Center
+        </button>
         <button class="btn btn-secondary" id="btn-sync-physical" title="Poll physical Snapmaker U1 over Wi-Fi now">
           <span style="font-size:1.05rem;">🔄</span>
           Sync Physical Farm
@@ -174,6 +195,7 @@ function renderPrinterCard(printer) {
             LAN: ${escapeHtml(printer.iotHost)}
           </span>
           <div style="display:flex;gap:4px;align-items:center;">
+            <button class="btn btn-secondary btn-sm" data-action="open-klipper-controls" data-id="${printer.id}" title="Snapmaker U1 Klipper Control Suite & Console" style="font-size:0.74rem;padding:2px 7px;display:inline-flex;align-items:center;gap:3px;">🎮 Controls</button>
             <button class="btn-icon btn-sm" data-action="fetch-camera" data-id="${printer.id}" title="View Camera Snapshot" style="font-size:0.8rem;padding:2px 4px;">📷</button>
             <button class="btn-icon btn-sm" data-action="poll-physical" data-id="${printer.id}" title="Refresh Live Data" style="font-size:0.8rem;padding:2px 4px;">🔄</button>
             <a href="http://${escapeHtml(printer.iotHost)}/" target="_blank" title="Open Fluidd Web UI" style="color:var(--text-secondary);font-size:0.8rem;padding:2px 4px;text-decoration:none;">🌐</a>
@@ -387,12 +409,23 @@ function bindEvents(container) {
     });
   });
 
+  // Klipper Command Center in header
+  container.querySelector('#btn-snapmaker-console')?.addEventListener('click', () => {
+    const snapmaker = getAll('printers').find(p => p.iotHost) || getAll('printers')[0];
+    if (snapmaker) {
+      openKlipperControlModal(snapmaker.id, container);
+    } else {
+      showToast('No active printer found to control', 'warning');
+    }
+  });
+
   // Card Actions
   container.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const { action, id } = btn.dataset;
-      if (action === 'assign-job') openAssignJobModal(id, container);
+      if (action === 'open-klipper-controls') openKlipperControlModal(id, container);
+      else if (action === 'assign-job') openAssignJobModal(id, container);
       else if (action === 'complete-job') markJobComplete(id, container);
       else if (action === 'scrap-job') openScrapLossModal(id, container);
       else if (action === 'toggle-pause') togglePause(id, container);
@@ -815,6 +848,631 @@ async function openCameraSnapshotModal(printerId, container) {
       openCameraSnapshotModal(printerId, container);
     });
   }, 50);
+}
+
+// ─── Snapmaker U1 Klipper Control Suite & Console ──────────────
+async function openKlipperControlModal(printerId, container) {
+  const printer = getById('printers', printerId);
+  if (!printer) return;
+  const host = printer.iotHost || '192.168.0.144';
+  const port = printer.iotPort || 80;
+
+  let jogStep = 10;
+  let gcodeHistory = [];
+  let historyIdx = -1;
+
+  // Initial telemetry and gcode files fetch in background
+  const initialTel = await fetchPrinterTelemetry(host, port);
+  const initialFiles = await fetchGcodeFiles(host, port);
+
+  const body = `
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+      <div>
+        <div style="font-weight:700;font-size:1.05rem;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
+          <span>🎮 ${escapeHtml(printer.name)} Klipper Command Center</span>
+          <span class="status-badge-live ${initialTel.online ? 'status-badge-idle' : 'status-badge-offline'}" style="font-size:0.7rem;padding:2px 8px;">
+            ${initialTel.online ? '🟢 Klipper Connected' : '🔴 Standby / Offline'}
+          </span>
+        </div>
+        <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:2px;">
+          Host: <strong>${escapeHtml(host)}:${escapeHtml(port)}</strong> • Status: <strong>${initialTel.status || printer.status}</strong> • Job: <strong>${initialTel.currentJob || printer.currentJob || 'None'}</strong>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-danger btn-sm emergency-stop-btn" id="klipper-btn-estop" title="Emergency Stop M112 — Immediately halts all printer heaters and motion motors">
+          🚨 M112 EMERGENCY STOP
+        </button>
+        <a href="http://${escapeHtml(host)}/" target="_blank" class="btn btn-ghost btn-sm" style="font-size:0.75rem;">
+          🌐 Fluidd Web
+        </a>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div style="display:flex;gap:6px;border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:14px;">
+      <button class="btn btn-secondary btn-sm klipper-tab-btn" data-tab="motion" style="background:var(--accent);color:#fff;">
+        🕹️ Motion & Homing
+      </button>
+      <button class="btn btn-ghost btn-sm klipper-tab-btn" data-tab="thermal">
+        🔥 Thermals & Extrusion
+      </button>
+      <button class="btn btn-ghost btn-sm klipper-tab-btn" data-tab="terminal">
+        💻 G-Code Console Terminal
+      </button>
+      <button class="btn btn-ghost btn-sm klipper-tab-btn" data-tab="files">
+        🗂️ SD Files & Print Control (${initialFiles.length})
+      </button>
+    </div>
+
+    <!-- Tab 1: Motion & Homing -->
+    <div id="klipper-pane-motion" class="klipper-tab-pane">
+      <div style="display:grid;grid-template-columns: 1fr 1fr;gap:16px;">
+        <!-- Left: Motion D-Pad -->
+        <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <span style="font-weight:600;font-size:0.9rem;color:var(--text-primary);">Toolhead & Bed Jog</span>
+            <!-- Step Selector -->
+            <div style="display:flex;gap:4px;">
+              ${[0.1, 1, 10, 50, 100].map(step => `
+                <button class="jog-step-pill ${step === 10 ? 'active' : ''}" data-step="${step}">${step}mm</button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="jog-pad-container">
+            <!-- XY Cross Pad -->
+            <div class="jog-dpad">
+              <button class="jog-btn jog-btn-y-plus" data-axis="Y" data-dir="1" title="Y+ (Bed Forward / Nozzle Back)">▲<span style="font-size:0.65rem;display:block;">Y+</span></button>
+              <button class="jog-btn jog-btn-x-minus" data-axis="X" data-dir="-1" title="X- (Toolhead Left)">◀<span style="font-size:0.65rem;display:block;">X-</span></button>
+              <button class="jog-btn jog-btn-home-xy" data-cmd="G28 X Y" title="Home X and Y axes" style="background:var(--accent);color:#fff;font-weight:700;font-size:0.75rem;">XY⌂</button>
+              <button class="jog-btn jog-btn-x-plus" data-axis="X" data-dir="1" title="X+ (Toolhead Right)">▶<span style="font-size:0.65rem;display:block;">X+</span></button>
+              <button class="jog-btn jog-btn-y-minus" data-axis="Y" data-dir="-1" title="Y- (Bed Back / Nozzle Forward)">▼<span style="font-size:0.65rem;display:block;">Y-</span></button>
+            </div>
+
+            <!-- Z Axis Column -->
+            <div class="jog-axis-z">
+              <button class="jog-btn" data-axis="Z" data-dir="1" title="Z+ (Toolhead Up)" style="height:48px;">▲<span style="font-size:0.65rem;display:block;">Z+</span></button>
+              <button class="jog-btn" data-cmd="G28 Z" title="Home Z axis" style="height:36px;background:rgba(59,130,246,0.2);color:var(--info);font-weight:700;font-size:0.75rem;">Z⌂</button>
+              <button class="jog-btn" data-axis="Z" data-dir="-1" title="Z- (Toolhead Down)" style="height:48px;">▼<span style="font-size:0.65rem;display:block;">Z-</span></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Homing & Calibration Quick Actions -->
+        <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <div style="font-weight:600;font-size:0.9rem;color:var(--text-primary);margin-bottom:12px;">Homing & Workshop Calibration</div>
+            <div style="display:grid;grid-template-columns: 1fr 1fr;gap:8px;">
+              <button class="btn btn-secondary btn-sm" data-cmd="G28" title="Home all axes (G28)" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                🏠 Home All
+              </button>
+              <button class="btn btn-secondary btn-sm" data-cmd="M84" title="Disable all stepper motors (M84)" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                🔌 Disable Steppers
+              </button>
+              <button class="btn btn-secondary btn-sm" data-cmd="BED_MESH_CALIBRATE" title="Run automatic bed mesh probe leveling" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                📐 Bed Mesh Level
+              </button>
+              <button class="btn btn-secondary btn-sm" data-cmd="PROBE_ACCURACY" title="Check inductive probe repeatability" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                🎯 Test Probe
+              </button>
+              <button class="btn btn-secondary btn-sm" data-cmd="QUAD_GANTRY_LEVEL" title="Quad gantry or dual Z level" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                ⚖️ Gantry Level
+              </button>
+              <button class="btn btn-secondary btn-sm" data-cmd="FIRMWARE_RESTART" title="Restart Klipper firmware controller" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                🔄 Klipper Restart
+              </button>
+            </div>
+          </div>
+
+          <div style="margin-top:14px;background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);border-radius:var(--radius-sm);padding:8px 10px;font-size:0.75rem;color:var(--text-secondary);">
+            💡 <strong>Motion Safety Note:</strong> Verify build plate clearance and ensure no finished model is resting on the bed before triggering <code>G28 Home All</code> or <code>Bed Mesh Level</code>.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Thermals & Extrusion -->
+    <div id="klipper-pane-thermal" class="klipper-tab-pane" style="display:none;">
+      <div style="display:grid;grid-template-columns: 1fr 1fr;gap:16px;">
+        <!-- Hotend & Bed -->
+        <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;">
+          <div style="font-weight:600;font-size:0.9rem;color:var(--text-primary);margin-bottom:12px;">Thermal Regulators</div>
+
+          <!-- Hotend Temp Controller -->
+          <div style="margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;margin-bottom:4px;">
+              <span>🔥 Extruder Hotend</span>
+              <span style="font-weight:700;color:var(--accent);"><span id="klipper-disp-hotend">${initialTel.currentNozzleTemp || 28}</span>°C / <span id="klipper-target-hotend">${initialTel.targetNozzleTemp || 0}</span>°C</span>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:6px;">
+              <input type="number" id="klipper-input-hotend" class="input input-sm" style="width:90px;" value="${initialTel.targetNozzleTemp || 210}" min="0" max="320" />
+              <button class="btn btn-primary btn-sm" id="btn-set-hotend">Set Temp</button>
+              <button class="btn btn-secondary btn-sm" id="btn-cool-hotend">Turn Off</button>
+            </div>
+            <div class="gcode-macro-chips">
+              <button class="gcode-macro-chip" data-hotend="205">PLA (205°C)</button>
+              <button class="gcode-macro-chip" data-hotend="240">PETG (240°C)</button>
+              <button class="gcode-macro-chip" data-hotend="255">ABS (255°C)</button>
+              <button class="gcode-macro-chip" data-hotend="220">TPU (220°C)</button>
+            </div>
+          </div>
+
+          <!-- Bed Temp Controller -->
+          <div style="margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;margin-bottom:4px;">
+              <span>🔲 Heated Build Bed</span>
+              <span style="font-weight:700;color:var(--warning);"><span id="klipper-disp-bed">${initialTel.currentBedTemp || 28}</span>°C / <span id="klipper-target-bed">${initialTel.targetBedTemp || 0}</span>°C</span>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:6px;">
+              <input type="number" id="klipper-input-bed" class="input input-sm" style="width:90px;" value="${initialTel.targetBedTemp || 60}" min="0" max="120" />
+              <button class="btn btn-primary btn-sm" id="btn-set-bed">Set Temp</button>
+              <button class="btn btn-secondary btn-sm" id="btn-cool-bed">Turn Off</button>
+            </div>
+            <div class="gcode-macro-chips">
+              <button class="gcode-macro-chip" data-bed="60">PLA (60°C)</button>
+              <button class="gcode-macro-chip" data-bed="75">PETG (75°C)</button>
+              <button class="gcode-macro-chip" data-bed="100">ABS (100°C)</button>
+            </div>
+          </div>
+
+          <!-- Part Cooling Fan -->
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.8rem;margin-bottom:4px;">
+              <span>💨 Part Cooling Fan</span>
+              <span style="font-weight:700;color:var(--info);"><span id="klipper-disp-fan">0</span>%</span>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="range" id="klipper-slider-fan" min="0" max="100" value="0" style="flex:1;" />
+              <button class="btn btn-secondary btn-sm" data-fan="0">0%</button>
+              <button class="btn btn-secondary btn-sm" data-fan="50">50%</button>
+              <button class="btn btn-secondary btn-sm" data-fan="100">100%</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filament Extrude / Retract Feed Center -->
+        <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <div style="font-weight:600;font-size:0.9rem;color:var(--text-primary);margin-bottom:12px;">Filament Loading & Feed Drive</div>
+            <p style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:14px;">
+              Extruder operations require hotend temperature to be above minimum extrusion temperature (≥ 170°C).
+            </p>
+
+            <div style="display:grid;grid-template-columns: 1fr 1fr;gap:10px;margin-bottom:14px;">
+              <button class="btn btn-secondary" id="btn-extrude-10" style="padding:10px;">
+                ⬇️ Extrude 10mm
+              </button>
+              <button class="btn btn-secondary" id="btn-retract-10" style="padding:10px;">
+                ⬆️ Retract 10mm
+              </button>
+              <button class="btn btn-secondary" id="btn-extrude-50" style="padding:10px;">
+                ⬇️ Purge 50mm
+              </button>
+              <button class="btn btn-secondary" id="btn-retract-50" style="padding:10px;">
+                ⬆️ Unload 50mm
+              </button>
+            </div>
+          </div>
+
+          <div style="background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.2);border-radius:var(--radius-sm);padding:8px 10px;font-size:0.75rem;color:var(--text-secondary);">
+            🧵 <strong>Assigned Spool:</strong> ${escapeHtml(printer.loadedSpool || 'Snapmaker PLA Pure Black (1kg)')}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: G-Code Console Terminal -->
+    <div id="klipper-pane-terminal" class="klipper-tab-pane" style="display:none;">
+      <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:0.8rem;color:var(--text-secondary);">
+          Interactive Moonraker G-Code Console • Direct serial pipe to Klippy MCU
+        </span>
+        <button class="btn btn-ghost btn-sm" id="btn-clear-terminal" style="font-size:0.72rem;">Clear Log</button>
+      </div>
+
+      <!-- Quick Macro Chips -->
+      <div class="gcode-macro-chips">
+        <button class="gcode-macro-chip" data-terminal-cmd="M105">M105 (Temps)</button>
+        <button class="gcode-macro-chip" data-terminal-cmd="M114">M114 (Position)</button>
+        <button class="gcode-macro-chip" data-terminal-cmd="G28">G28 (Home All)</button>
+        <button class="gcode-macro-chip" data-terminal-cmd="M84">M84 (Motors Off)</button>
+        <button class="gcode-macro-chip" data-terminal-cmd="GET_POSITION">GET_POSITION</button>
+        <button class="gcode-macro-chip" data-terminal-cmd="BED_MESH_CALIBRATE">BED_MESH_CALIBRATE</button>
+        <button class="gcode-macro-chip" data-terminal-cmd="FIRMWARE_RESTART">FIRMWARE_RESTART</button>
+      </div>
+
+      <!-- Terminal Output Screen -->
+      <div class="gcode-terminal-screen" id="klipper-terminal-output">
+        <div class="gcode-terminal-line">> Connected to Snapmaker U1 Klipper host: ${escapeHtml(host)}:${escapeHtml(port)}</div>
+        <div class="gcode-terminal-line">> Moonraker G-Code script proxy ready. Type G-Code or select macros above.</div>
+      </div>
+
+      <!-- Console Input Field -->
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span style="font-family:var(--font-mono);font-size:0.85rem;color:var(--accent);font-weight:700;">klippy&gt;</span>
+        <input type="text" id="klipper-terminal-input" class="input" style="flex:1;font-family:var(--font-mono);font-size:0.85rem;" placeholder="e.g. G28, M105, G1 X100 Y100 F3000..." autocomplete="off" />
+        <button class="btn btn-primary" id="klipper-btn-send-gcode">Send</button>
+      </div>
+    </div>
+
+    <!-- Tab 4: Virtual SDCard Files & Live Camera -->
+    <div id="klipper-pane-files" class="klipper-tab-pane" style="display:none;">
+      <div style="display:grid;grid-template-columns: 1fr 1fr;gap:16px;">
+        <!-- Left: SDCard Sliced G-Code Files -->
+        <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <span style="font-weight:600;font-size:0.9rem;color:var(--text-primary);">Virtual SDCard G-Codes</span>
+            <button class="btn btn-ghost btn-sm" id="btn-refresh-sd-files" style="font-size:0.75rem;">🔄 Refresh</button>
+          </div>
+
+          <div style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
+            ${initialFiles.length > 0 ? initialFiles.map(f => `
+              <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;">
+                <div style="min-width:0;flex:1;margin-right:8px;">
+                  <div class="truncate" style="font-weight:600;font-size:0.8rem;color:var(--text-primary);" title="${escapeHtml(f.path)}">
+                    ⚙️ ${escapeHtml(f.path)}
+                  </div>
+                  <div style="font-size:0.7rem;color:var(--text-secondary);margin-top:2px;">
+                    ${Math.round((f.size || 0)/1024)} KB • ${f.modified ? new Date(f.modified * 1000).toLocaleDateString() : 'Ready'}
+                  </div>
+                </div>
+                <button class="btn btn-primary btn-sm btn-start-gcode" data-filename="${escapeHtml(f.path)}" title="Instruct Klipper to start printing this file">
+                  🚀 Print
+                </button>
+              </div>
+            `).join('') : `
+              <div style="text-align:center;padding:30px 10px;color:var(--text-secondary);font-size:0.8rem;">
+                No sliced files found in printer virtual_sdcard.
+              </div>
+            `}
+          </div>
+        </div>
+
+        <!-- Right: Print Control & Camera Frame -->
+        <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <div style="font-weight:600;font-size:0.9rem;color:var(--text-primary);margin-bottom:12px;">Active Print Job Controls</div>
+            <div style="display:grid;grid-template-columns: 1fr 1fr;gap:8px;margin-bottom:14px;">
+              <button class="btn btn-secondary btn-sm" id="klipper-btn-pause" title="Pause active printing job">
+                ⏸️ Pause Job
+              </button>
+              <button class="btn btn-secondary btn-sm" id="klipper-btn-resume" title="Resume paused printing job">
+                ▶️ Resume Job
+              </button>
+              <button class="btn btn-secondary btn-sm" id="klipper-btn-cancel" style="color:var(--danger);" title="Cancel active printing job">
+                ⏹️ Cancel Job
+              </button>
+              <button class="btn btn-secondary btn-sm" id="klipper-btn-refresh-cam" title="Fetch latest optical camera snapshot">
+                📷 Refresh Cam
+              </button>
+            </div>
+
+            <!-- Optical Snapshot Frame -->
+            <div id="klipper-cam-box" style="background:#000;border:1px solid var(--border);border-radius:var(--radius-sm);height:170px;overflow:hidden;display:flex;align-items:center;justify-content:center;position:relative;">
+              <img id="klipper-cam-img" src="http://${escapeHtml(host)}/server/files/camera/snapshot.jpg?t=${Date.now()}" alt="Snapmaker Cam" style="max-height:100%;max-width:100%;object-fit:contain;" onerror="this.style.display='none';document.getElementById('klipper-cam-placeholder').style.display='block';" />
+              <div id="klipper-cam-placeholder" style="display:none;color:var(--text-secondary);font-size:0.75rem;text-align:center;padding:20px;">
+                📷 Camera feed stream offline or idle.
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top:10px;display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-secondary);">
+            <span>Telemetry: <strong>${initialTel.currentNozzleTemp || 28}°C / Bed ${initialTel.currentBedTemp || 28}°C</strong></span>
+            <span>Progress: <strong>${initialTel.jobProgress || 0}%</strong></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  showModal({
+    title: `Snapmaker U1 Klipper Control Suite`,
+    body,
+    confirmText: 'Close Suite',
+    onConfirm: () => {
+      closeModal();
+      render(container);
+    },
+  });
+
+  // Bind interactive modal events
+  setTimeout(() => {
+    const logEl = document.getElementById('klipper-terminal-output');
+    const inputEl = document.getElementById('klipper-terminal-input');
+
+    const logToTerminal = (msg, isErr = false) => {
+      if (!logEl) return;
+      const line = document.createElement('div');
+      line.className = 'gcode-terminal-line';
+      if (isErr) line.classList.add('error');
+      const time = new Date().toLocaleTimeString();
+      line.textContent = `[${time}] ${msg}`;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+
+    // Tab switching
+    document.querySelectorAll('.klipper-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        document.querySelectorAll('.klipper-tab-btn').forEach(b => {
+          b.classList.remove('btn-secondary');
+          b.classList.add('btn-ghost');
+          b.style.background = 'transparent';
+          b.style.color = 'var(--text-secondary)';
+        });
+        btn.classList.add('btn-secondary');
+        btn.classList.remove('btn-ghost');
+        btn.style.background = 'var(--accent)';
+        btn.style.color = '#fff';
+
+        document.querySelectorAll('.klipper-tab-pane').forEach(p => p.style.display = 'none');
+        const activePane = document.getElementById(`klipper-pane-${tab}`);
+        if (activePane) activePane.style.display = 'block';
+      });
+    });
+
+    // Step Selector
+    document.querySelectorAll('.jog-step-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('.jog-step-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        jogStep = parseFloat(pill.dataset.step) || 10;
+      });
+    });
+
+    // Directional Jog
+    document.querySelectorAll('.jog-btn[data-axis]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const axis = btn.dataset.axis;
+        const dir = parseFloat(btn.dataset.dir) || 1;
+        const dist = (jogStep * dir);
+        logToTerminal(`Jogging ${axis} by ${dist}mm...`);
+        const res = await jogAxis(axis, dist, null, host, port);
+        if (res.success) {
+          logToTerminal(`✓ Jog ${axis} ${dist}mm executed`);
+        } else {
+          logToTerminal(`⚠️ Jog failed: ${res.error || 'Check printer connection'}`, true);
+        }
+      });
+    });
+
+    // Preset Commands on buttons
+    document.querySelectorAll('[data-cmd]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const cmd = btn.dataset.cmd;
+        logToTerminal(`Executing command: ${cmd}`);
+        const res = await sendGcodeCommand(cmd, host, port);
+        if (res.success) {
+          logToTerminal(`✓ ${cmd} acknowledged by Klippy`);
+        } else {
+          logToTerminal(`⚠️ ${cmd} failed: ${res.error || 'Error'}`, true);
+        }
+      });
+    });
+
+    // Emergency Stop
+    document.getElementById('klipper-btn-estop')?.addEventListener('click', async () => {
+      if (confirm('🚨 TRIGGER EMERGENCY STOP (M112)? This will immediately shut down all heaters and motors!')) {
+        logToTerminal('🚨 M112 EMERGENCY STOP SENT', true);
+        await emergencyStop(host, port);
+        showToast('🚨 Emergency Stop (M112) triggered!', 'error');
+      }
+    });
+
+    // Set Hotend
+    document.getElementById('btn-set-hotend')?.addEventListener('click', async () => {
+      const val = parseFloat(document.getElementById('klipper-input-hotend')?.value) || 0;
+      logToTerminal(`Setting target hotend temp: ${val}°C`);
+      await setTargetHotendTemp(val, host, port);
+      const targetDisp = document.getElementById('klipper-target-hotend');
+      if (targetDisp) targetDisp.textContent = val;
+      showToast(`Extruder set to ${val}°C`, 'info');
+    });
+
+    document.getElementById('btn-cool-hotend')?.addEventListener('click', async () => {
+      logToTerminal('Turning off hotend heater (0°C)');
+      await setTargetHotendTemp(0, host, port);
+      const targetDisp = document.getElementById('klipper-target-hotend');
+      if (targetDisp) targetDisp.textContent = '0';
+      showToast('Extruder cooling down', 'info');
+    });
+
+    // Hotend Preset Chips
+    document.querySelectorAll('[data-hotend]').forEach(chip => {
+      chip.addEventListener('click', async () => {
+        const val = parseFloat(chip.dataset.hotend) || 0;
+        const input = document.getElementById('klipper-input-hotend');
+        if (input) input.value = val;
+        logToTerminal(`Setting target hotend temp to preset: ${val}°C`);
+        await setTargetHotendTemp(val, host, port);
+        const targetDisp = document.getElementById('klipper-target-hotend');
+        if (targetDisp) targetDisp.textContent = val;
+        showToast(`Extruder set to ${val}°C`, 'info');
+      });
+    });
+
+    // Set Bed
+    document.getElementById('btn-set-bed')?.addEventListener('click', async () => {
+      const val = parseFloat(document.getElementById('klipper-input-bed')?.value) || 0;
+      logToTerminal(`Setting target bed temp: ${val}°C`);
+      await setTargetBedTemp(val, host, port);
+      const targetDisp = document.getElementById('klipper-target-bed');
+      if (targetDisp) targetDisp.textContent = val;
+      showToast(`Heatbed set to ${val}°C`, 'info');
+    });
+
+    document.getElementById('btn-cool-bed')?.addEventListener('click', async () => {
+      logToTerminal('Turning off bed heater (0°C)');
+      await setTargetBedTemp(0, host, port);
+      const targetDisp = document.getElementById('klipper-target-bed');
+      if (targetDisp) targetDisp.textContent = '0';
+      showToast('Heatbed cooling down', 'info');
+    });
+
+    // Bed Preset Chips
+    document.querySelectorAll('[data-bed]').forEach(chip => {
+      chip.addEventListener('click', async () => {
+        const val = parseFloat(chip.dataset.bed) || 0;
+        const input = document.getElementById('klipper-input-bed');
+        if (input) input.value = val;
+        logToTerminal(`Setting target bed temp to preset: ${val}°C`);
+        await setTargetBedTemp(val, host, port);
+        const targetDisp = document.getElementById('klipper-target-bed');
+        if (targetDisp) targetDisp.textContent = val;
+        showToast(`Heatbed set to ${val}°C`, 'info');
+      });
+    });
+
+    // Fan Slider & Buttons
+    const fanSlider = document.getElementById('klipper-slider-fan');
+    const fanDisp = document.getElementById('klipper-disp-fan');
+    fanSlider?.addEventListener('input', (e) => {
+      if (fanDisp) fanDisp.textContent = e.target.value;
+    });
+    fanSlider?.addEventListener('change', async (e) => {
+      const pct = parseFloat(e.target.value) || 0;
+      logToTerminal(`Setting cooling fan to ${pct}%`);
+      await setFanSpeed(pct, host, port);
+    });
+
+    document.querySelectorAll('[data-fan]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const pct = parseFloat(btn.dataset.fan) || 0;
+        if (fanSlider) fanSlider.value = pct;
+        if (fanDisp) fanDisp.textContent = pct;
+        logToTerminal(`Setting cooling fan to ${pct}%`);
+        await setFanSpeed(pct, host, port);
+      });
+    });
+
+    // Extrusion Controls
+    document.getElementById('btn-extrude-10')?.addEventListener('click', async () => {
+      logToTerminal('Extruding 10mm filament...');
+      const res = await extrudeRetract(10, 5, host, port);
+      logToTerminal(res.success ? '✓ Extruded 10mm' : `⚠️ Extrude failed: ${res.error || 'Too cold?'}`, !res.success);
+    });
+    document.getElementById('btn-retract-10')?.addEventListener('click', async () => {
+      logToTerminal('Retracting 10mm filament...');
+      const res = await extrudeRetract(-10, 5, host, port);
+      logToTerminal(res.success ? '✓ Retracted 10mm' : `⚠️ Retract failed: ${res.error || 'Too cold?'}`, !res.success);
+    });
+    document.getElementById('btn-extrude-50')?.addEventListener('click', async () => {
+      logToTerminal('Purging 50mm filament...');
+      const res = await extrudeRetract(50, 4, host, port);
+      logToTerminal(res.success ? '✓ Purged 50mm' : `⚠️ Purge failed: ${res.error || 'Too cold?'}`, !res.success);
+    });
+    document.getElementById('btn-retract-50')?.addEventListener('click', async () => {
+      logToTerminal('Unloading 50mm filament...');
+      const res = await extrudeRetract(-50, 4, host, port);
+      logToTerminal(res.success ? '✓ Unloaded 50mm' : `⚠️ Unload failed: ${res.error || 'Too cold?'}`, !res.success);
+    });
+
+    // Terminal Execution
+    const executeTerminalCmd = async (cmd) => {
+      if (!cmd) return;
+      gcodeHistory.unshift(cmd);
+      historyIdx = -1;
+      logToTerminal(`> ${cmd}`);
+      if (inputEl) inputEl.value = '';
+      const res = await sendGcodeCommand(cmd, host, port);
+      if (res.success) {
+        logToTerminal(`[ok] ${cmd} processed`);
+      } else {
+        logToTerminal(`[error] ${res.error || 'Command execution failed'}`, true);
+      }
+    };
+
+    document.getElementById('klipper-btn-send-gcode')?.addEventListener('click', () => {
+      executeTerminalCmd(inputEl?.value.trim());
+    });
+
+    inputEl?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        executeTerminalCmd(inputEl.value.trim());
+      } else if (e.key === 'ArrowUp') {
+        if (historyIdx < gcodeHistory.length - 1) {
+          historyIdx++;
+          inputEl.value = gcodeHistory[historyIdx] || '';
+        }
+      } else if (e.key === 'ArrowDown') {
+        if (historyIdx > 0) {
+          historyIdx--;
+          inputEl.value = gcodeHistory[historyIdx] || '';
+        } else {
+          historyIdx = -1;
+          inputEl.value = '';
+        }
+      }
+    });
+
+    document.querySelectorAll('[data-terminal-cmd]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        executeTerminalCmd(chip.dataset.terminalCmd);
+      });
+    });
+
+    document.getElementById('btn-clear-terminal')?.addEventListener('click', () => {
+      if (logEl) logEl.innerHTML = '';
+      logToTerminal('Terminal log cleared.');
+    });
+
+    // Start Sliced G-Code Print
+    document.querySelectorAll('.btn-start-gcode').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const filename = btn.dataset.filename;
+        if (confirm(`Instruct Snapmaker U1 to start printing:\n${filename}?`)) {
+          logToTerminal(`Instructing Klipper to start job: ${filename}`);
+          const ok = await startGcodePrint(filename, host, port);
+          if (ok) {
+            showToast(`Print started: ${filename}`, 'success');
+            logToTerminal(`✓ Job successfully launched!`);
+          } else {
+            showToast('Failed to start print file', 'error');
+            logToTerminal(`⚠️ Failed to start print`, true);
+          }
+        }
+      });
+    });
+
+    // Pause, Resume, Cancel Print
+    document.getElementById('klipper-btn-pause')?.addEventListener('click', async () => {
+      logToTerminal('Pausing active print job...');
+      const ok = await pausePrint(host, port);
+      showToast(ok ? 'Print job paused' : 'Pause command failed', ok ? 'info' : 'error');
+    });
+
+    document.getElementById('klipper-btn-resume')?.addEventListener('click', async () => {
+      logToTerminal('Resuming print job...');
+      const ok = await resumePrint(host, port);
+      showToast(ok ? 'Print job resumed' : 'Resume command failed', ok ? 'success' : 'error');
+    });
+
+    document.getElementById('klipper-btn-cancel')?.addEventListener('click', async () => {
+      if (confirm('Cancel active print job on Snapmaker U1?')) {
+        logToTerminal('Cancelling print job...');
+        const ok = await cancelPrint(host, port);
+        showToast(ok ? 'Print job cancelled' : 'Cancel command failed', ok ? 'warning' : 'error');
+      }
+    });
+
+    // Refresh Camera Frame
+    document.getElementById('klipper-btn-refresh-cam')?.addEventListener('click', () => {
+      const img = document.getElementById('klipper-cam-img');
+      if (img) {
+        img.src = `http://${escapeHtml(host)}/server/files/camera/snapshot.jpg?t=${Date.now()}`;
+        img.style.display = 'block';
+      }
+      showToast('Camera frame refreshed', 'info');
+    });
+
+    // Refresh SD Files
+    document.getElementById('btn-refresh-sd-files')?.addEventListener('click', () => {
+      closeModal();
+      openKlipperControlModal(printerId, container);
+    });
+
+  }, 60);
 }
 
 // ─── Printable Workshop Job Traveler Card (Phase 2 & 3) ────────

@@ -247,3 +247,157 @@ export async function scanLocalSubnet(baseSubnet = '192.168.0', onProgress = nul
 
   return { found: false };
 }
+
+/**
+ * Send arbitrary G-Code script to Klipper with proxy fallback
+ */
+export async function sendGcodeCommand(script, ip = '192.168.0.144', port = 80) {
+  const host = port == 80 ? ip : `${ip}:${port}`;
+  const directUrl = `http://${host}/printer/gcode/script`;
+  const proxyUrl = `${API_BASE}/printer/gcode`;
+
+  // 1. Try direct fetch
+  try {
+    const res = await fetch(directUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ script }),
+      signal: AbortSignal.timeout(3000)
+    });
+    if (res.ok) {
+      return { success: true, data: await res.json() };
+    }
+  } catch {}
+
+  // 2. Proxy fallback
+  try {
+    const res = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ script, ip, port }),
+      signal: AbortSignal.timeout(5000)
+    });
+    const data = await res.json();
+    return { success: res.ok, data };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Pause active physical print job
+ */
+export async function pausePrint(ip = '192.168.0.144', port = 80) {
+  try {
+    const res = await fetch(`${API_BASE}/printer/pause?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}`, { method: 'POST' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resume paused physical print job
+ */
+export async function resumePrint(ip = '192.168.0.144', port = 80) {
+  try {
+    const res = await fetch(`${API_BASE}/printer/resume?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}`, { method: 'POST' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Cancel physical print job
+ */
+export async function cancelPrint(ip = '192.168.0.144', port = 80) {
+  try {
+    const res = await fetch(`${API_BASE}/printer/cancel?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}`, { method: 'POST' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Trigger immediate Emergency Stop (M112)
+ */
+export async function emergencyStop(ip = '192.168.0.144', port = 80) {
+  try {
+    const res = await fetch(`${API_BASE}/printer/emergency_stop?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}`, { method: 'POST' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Set target extruder hotend temperature
+ */
+export async function setTargetHotendTemp(temp, ip = '192.168.0.144', port = 80) {
+  return sendGcodeCommand(`M104 S${Math.round(temp)}`, ip, port);
+}
+
+/**
+ * Set target heatbed temperature
+ */
+export async function setTargetBedTemp(temp, ip = '192.168.0.144', port = 80) {
+  return sendGcodeCommand(`M140 S${Math.round(temp)}`, ip, port);
+}
+
+/**
+ * Set part cooling fan speed (0 - 100%)
+ */
+export async function setFanSpeed(pct, ip = '192.168.0.144', port = 80) {
+  const pwm = Math.round((Math.max(0, Math.min(100, pct)) / 100) * 255);
+  return sendGcodeCommand(`M106 S${pwm}`, ip, port);
+}
+
+/**
+ * Jog relative motion on X, Y, or Z axis
+ */
+export async function jogAxis(axis, distanceMm, feedrate = null, ip = '192.168.0.144', port = 80) {
+  const ax = axis.toUpperCase();
+  const f = feedrate || (ax === 'Z' ? 600 : 3000);
+  const script = `G91\nG1 ${ax}${distanceMm} F${f}\nG90`;
+  return sendGcodeCommand(script, ip, port);
+}
+
+/**
+ * Extrude or Retract filament
+ */
+export async function extrudeRetract(amountMm, speedMmS = 5, ip = '192.168.0.144', port = 80) {
+  const f = Math.round(speedMmS * 60);
+  const script = `M83\nG1 E${amountMm} F${f}`;
+  return sendGcodeCommand(script, ip, port);
+}
+
+/**
+ * Fetch all sliced G-Code files stored in virtual_sdcard (/gcodes)
+ */
+export async function fetchGcodeFiles(ip = '192.168.0.144', port = 80) {
+  const proxyUrl = `${API_BASE}/printer/gcode_files?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}`;
+  try {
+    const res = await fetch(proxyUrl);
+    if (res.ok) {
+      const data = await res.json();
+      return (data.result || []).sort((a, b) => (b.modified || 0) - (a.modified || 0));
+    }
+  } catch {}
+  return [];
+}
+
+/**
+ * Start printing a file from virtual_sdcard
+ */
+export async function startGcodePrint(filename, ip = '192.168.0.144', port = 80) {
+  const proxyUrl = `${API_BASE}/printer/print/start?ip=${encodeURIComponent(ip)}&port=${encodeURIComponent(port)}&filename=${encodeURIComponent(filename)}`;
+  try {
+    const res = await fetch(proxyUrl, { method: 'POST' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
