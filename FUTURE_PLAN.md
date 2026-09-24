@@ -85,13 +85,15 @@ graph TB
                                     │
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 4 (Current Operational Priority): Workshop Spool Tare & Physical Lab Logistics   │
+│ PHASE 4 (Delivered): Workshop Spool Tare & Physical Lab Logistics                      │
 │ • Digital Scale Spool Tare Tool: Exact usable filament calculation subtracting spool   │
+│ • Live Job Feasibility & Parts Yield Calculator: Prevents mid-print runouts            │
 │ • Printable Workshop Job Traveler Card (📋): A4 QC checklist & router for shop floor   │
 │ • Zero-Touch Spool Deduction: Auto-decrements grams on print complete                  │
-│ • Scrap Loss & Failed Print Logger: Deducts wasted filament and logs ledger loss       │
+│ • Universal Scrap Loss & Defect Logger: Deducts wasted filament & debits ledger loss   │
+│ • Fleet Hub Scrap Loss KPI Ribbon: Real-time defect loss and wasted mass visibility    │
 │ • Thermal QR Label Generation (50x30mm) for spool storage racks and bin organization   │
-│ • Workshop hardware tracking: Brass heat-set inserts (M2–M5), high-flow nozzles, IPA   │
+│ • Workshop hardware tracking & fast pull: Brass heat-set inserts (M2–M5), nozzles, IPA │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 

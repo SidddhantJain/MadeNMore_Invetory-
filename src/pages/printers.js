@@ -10,6 +10,7 @@ import { showModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
 import { PRINTER_SEED } from '../data/seed.js';
 import { openTareCalculatorModal } from '../utils/tareCalculator.js';
+import { openUniversalScrapLossModal } from '../utils/scrapLogger.js';
 import { readSlicerFile } from '../utils/slicerParser.js';
 import {
   fetchPrinterTelemetry,
@@ -67,6 +68,11 @@ function render(container) {
   const maintenancePrinters = printers.filter(p => p.status === 'maintenance');
   const totalHours = printers.reduce((s, p) => s + (p.runningHours || 0), 0);
 
+  const allTxns = getAll('transactions') || [];
+  const scrapTxns = allTxns.filter(t => t.description?.toLowerCase().includes('scrap') || t.metadata?.wastedGrams);
+  const totalScrapCost = Math.abs(scrapTxns.reduce((s, t) => s + (t.amount < 0 ? t.amount : 0), 0));
+  const totalScrapGrams = scrapTxns.reduce((s, t) => s + (t.metadata?.wastedGrams || 0), 0);
+
   container.innerHTML = `
     <div class="page-header animate-in">
       <div class="page-header-left">
@@ -90,6 +96,10 @@ function render(container) {
           <span style="font-size:1.05rem;">⚖️</span>
           Tare Spool
         </button>
+        <button class="btn btn-secondary" id="btn-fleet-scrap" title="Log scrap loss, failed print, or purge waste anytime" style="border-color:rgba(239,68,68,0.4);color:var(--danger);">
+          <span style="font-size:1.05rem;">⚠️</span>
+          Log Scrap Loss
+        </button>
         <button class="btn ${_telemetryActive ? 'btn-success' : 'btn-secondary'}" id="btn-toggle-telemetry" title="Toggle real-time IoT telemetry heartbeat">
           <span class="status-live-dot ${_telemetryActive ? 'telemetry-pulse' : ''}" style="background:${_telemetryActive ? '#22c55e' : '#94a3b8'};"></span>
           IoT Telemetry: ${_telemetryActive ? 'LIVE' : 'PAUSED'}
@@ -102,7 +112,7 @@ function render(container) {
     </div>
 
     <!-- Fleet Status KPI Grid -->
-    <div class="stat-grid" style="grid-template-columns: repeat(4, 1fr);">
+    <div class="stat-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
       <div class="card stat-card animate-in animate-delay-1">
         <div class="card-title">Fleet Active</div>
         <div class="stat-value text-info" style="display:flex;align-items:center;gap:8px;">
@@ -127,6 +137,13 @@ function render(container) {
         <div class="card-title">Fleet Run Time</div>
         <div class="stat-value text-primary">${totalHours} <span style="font-size:1rem;color:var(--text-secondary);font-weight:400;">hrs</span></div>
         <div class="stat-label">cumulative operational hours</div>
+      </div>
+      <div class="card stat-card animate-in animate-delay-4" style="border-left: 3px solid rgba(239,68,68,0.7);cursor:pointer;" id="card-kpi-scrap" title="Click to open Universal Scrap & Defect Logger">
+        <div class="card-title" style="color:var(--danger);display:flex;align-items:center;gap:6px;">
+          <span>⚠️ Scrap Loss</span>
+        </div>
+        <div class="stat-value text-danger">${formatCurrency(totalScrapCost)}</div>
+        <div class="stat-label">${totalScrapGrams > 0 ? `${totalScrapGrams}g wasted` : '0g logged'} • ${scrapTxns.length} defect${scrapTxns.length === 1 ? '' : 's'}</div>
       </div>
     </div>
 
@@ -377,6 +394,14 @@ function bindEvents(container) {
   // Scale Tare Shortcut
   container.querySelector('#btn-scale-tare-printers')?.addEventListener('click', () => {
     openTareCalculatorModal(null, () => render(container));
+  });
+
+  container.querySelector('#btn-fleet-scrap')?.addEventListener('click', () => {
+    openUniversalScrapLossModal({}, () => render(container));
+  });
+
+  container.querySelector('#card-kpi-scrap')?.addEventListener('click', () => {
+    openUniversalScrapLossModal({}, () => render(container));
   });
 
   // Toggle Live IoT Telemetry Heartbeat
@@ -1788,126 +1813,7 @@ function markJobComplete(printerId, container, fromTelemetry = false) {
 
 // ─── Scrap Loss & Print Failure Logger Modal ───────────────────
 function openScrapLossModal(printerId, container) {
-  const printer = getById('printers', printerId);
-  if (!printer) return;
-
-  const currentGrams = printer.jobGrams || 140;
-  const progressPct = printer.jobProgress || 30;
-  const estimatedWasted = Math.round((currentGrams * progressPct) / 100);
-
-  const body = `
-    <div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.25);border-radius:var(--radius-md);padding:14px;margin-bottom:var(--space-md);">
-      <div style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--danger);font-size:0.95rem;">
-        <span>⚠️ Abort Print & Log Scrap Loss</span>
-      </div>
-      <p style="font-size:0.8rem;color:var(--text-secondary);margin:4px 0 0 0;">
-        Machine: <strong>${escapeHtml(printer.name)}</strong> • Job: <strong>${escapeHtml(printer.currentJob || 'Job')}</strong>
-        <br />Deduct wasted filament mass and record failure cost in the financial ledger.
-      </p>
-    </div>
-
-    <div class="form-group">
-      <label class="form-label">Filament Wasted Before Failure (Grams) *</label>
-      <div style="display:flex;gap:12px;align-items:center;">
-        <input class="form-input" type="number" id="scrap-grams" value="${estimatedWasted}" min="1" max="1000" style="font-size:1.15rem;font-weight:700;max-width:140px;" />
-        <span style="font-size:0.85rem;color:var(--text-secondary);">Estimated from ${progressPct}% completion</span>
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label class="form-label">Root Cause / Failure Reason *</label>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;" id="root-cause-chips">
-        <span class="root-cause-chip selected" data-cause="Bed Adhesion Failure / Warping">🔲 Bed Adhesion Loss</span>
-        <span class="root-cause-chip" data-cause="Nozzle Clog / Extruder Skipping">🔥 Nozzle Clog</span>
-        <span class="root-cause-chip" data-cause="Layer Shift / Mechanical Skip">📐 Layer Shift</span>
-        <span class="root-cause-chip" data-cause="Filament Runout / Tangled Spool">🧵 Filament Runout</span>
-        <span class="root-cause-chip" data-cause="Power Cut / Workshop Outage">⚡ Power Cut</span>
-        <span class="root-cause-chip" data-cause="Slicing / Overhang Defect">💻 Slicing Defect</span>
-      </div>
-      <input type="hidden" id="scrap-cause-val" value="Bed Adhesion Failure / Warping" />
-    </div>
-
-    <div class="form-group">
-      <label class="form-label">Operator Notes / Diagnostic Log</label>
-      <textarea class="form-textarea form-input" id="scrap-notes" placeholder="e.g. Z-offset was too high on front-left quadrant, nozzle cleaned with needle..."></textarea>
-    </div>
-
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:0.85rem;color:var(--text-secondary);">Calculated Material Loss Expense:</span>
-      <strong id="disp-scrap-cost" style="color:var(--danger);font-size:1.05rem;">₹${Math.round(estimatedWasted * 1.45)}</strong>
-    </div>
-  `;
-
-  showModal({
-    title: 'Print Failure & Scrap Logger',
-    body,
-    confirmText: 'Record Scrap & Abort Job',
-    confirmClass: 'btn-danger',
-    onConfirm: () => {
-      const wastedGrams = parseFloat(document.getElementById('scrap-grams')?.value) || 0;
-      const rootCause = document.getElementById('scrap-cause-val')?.value || 'Print Failure';
-      const scrapCost = Math.round(wastedGrams * 1.45);
-
-      if (printer.loadedSpool && wastedGrams > 0) {
-        const allFilaments = getAll('filaments');
-        const loadedFil = allFilaments.find(f => 
-          printer.loadedSpool.toLowerCase().includes(f.name.toLowerCase()) ||
-          f.name.toLowerCase().includes(printer.loadedSpool.toLowerCase())
-        );
-
-        if (loadedFil) {
-          const newSpools = Math.max(0, Number(((loadedFil.spools || 1) - (wastedGrams / 1000)).toFixed(2)));
-          update('filaments', loadedFil.id, {
-            spools: newSpools,
-            remainingGrams: Math.max(0, Math.round(((loadedFil.remainingGrams || (loadedFil.spools * 1000)) - wastedGrams))),
-          });
-        }
-      }
-
-      create('transactions', {
-        date: formatDate(new Date()),
-        description: `Scrap Loss (${wastedGrams}g on ${printer.name}): ${rootCause}`,
-        category: 'Other',
-        type: 'Expense',
-        amount: -scrapCost,
-      });
-
-      update('printers', printerId, {
-        status: 'idle',
-        currentJob: null,
-        jobGrams: 0,
-        jobProgress: 0,
-        elapsedMinutes: 0,
-        targetNozzleTemp: 0,
-        targetBedTemp: 0,
-        orderId: null,
-      });
-
-      showToast(`⚠️ Scrap loss recorded: ${wastedGrams}g deducted from spool & ₹${scrapCost} logged in financial ledger.`, 'warning');
-      closeModal();
-      render(container);
-    },
-  });
-
-  setTimeout(() => {
-    const chips = document.querySelectorAll('#root-cause-chips .root-cause-chip');
-    const hiddenVal = document.getElementById('scrap-cause-val');
-    const gramsInput = document.getElementById('scrap-grams');
-    const dispCost = document.getElementById('disp-scrap-cost');
-
-    chips.forEach(chip => {
-      chip.addEventListener('click', () => {
-        chips.forEach(c => c.classList.remove('selected'));
-        chip.classList.add('selected');
-        if (hiddenVal) hiddenVal.value = chip.dataset.cause;
-      });
-    });
-
-    gramsInput?.addEventListener('input', () => {
-      const g = parseFloat(gramsInput.value) || 0;
-      if (dispCost) dispCost.textContent = `₹${Math.round(g * 1.45)}`;
-    });
-  }, 50);
+  openUniversalScrapLossModal({ printerId }, () => render(container));
 }
 
 // ─── IoT Connector Configuration & Auto-Scan Modal ─────────────

@@ -8,6 +8,7 @@ import { formatCurrency, formatDate, escapeHtml, todayStr, debounce } from '../u
 import { ICONS } from '../utils/icons.js';
 import { showModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
+import { openUniversalScrapLossModal } from '../utils/scrapLogger.js';
 
 export const KANBAN_STAGES = [
   { id: 'quote', label: 'Draft / Quote', color: '#64748b' },
@@ -256,6 +257,14 @@ function renderKanbanCard(order, currentStage) {
         </div>
       </div>
 
+      ${order.scrapGrams > 0 ? `
+        <div style="margin-bottom:6px;">
+          <span class="badge" style="background:rgba(239,68,68,0.15);color:var(--danger);border:1px solid rgba(239,68,68,0.3);font-size:0.68rem;padding:2px 6px;">
+            ⚠️ ${order.scrapGrams}g scrap (₹${order.scrapCost || Math.round(order.scrapGrams * 1.45)})
+          </span>
+        </div>
+      ` : ''}
+
       <div class="kanban-card-meta">
         <span class="kanban-card-amount">${formatCurrency(order.totalAmount)}</span>
         <div class="flex gap-xs">
@@ -264,6 +273,9 @@ function renderKanbanCard(order, currentStage) {
           </button>
           <button class="btn-icon btn-sm" data-action="print-traveler" data-id="${order.id}" title="Print Job Traveler & QC Sheet" style="padding:2px 4px;font-size:0.75rem;">
             📋
+          </button>
+          <button class="btn-icon btn-sm" data-action="log-scrap-order" data-id="${order.id}" title="Log Print Scrap / Defect" style="padding:2px 4px;font-size:0.75rem;color:var(--danger);">
+            ⚠️
           </button>
           <button class="btn-icon btn-sm" data-action="log-payment" data-id="${order.id}" title="Log Milestone Payment" style="padding:2px 4px;font-size:0.75rem;">
             ${ICONS.plus}
@@ -332,6 +344,11 @@ function renderOrderCard(order) {
           </div>
         </div>
         <div class="order-card-right">
+          ${order.scrapGrams > 0 ? `
+            <span class="badge" style="background:rgba(239,68,68,0.15);color:var(--danger);border:1px solid rgba(239,68,68,0.3);font-size:0.72rem;padding:2px 8px;margin-bottom:4px;">
+              ⚠️ ${order.scrapGrams}g scrap
+            </span>
+          ` : ''}
           <span class="badge" style="background:${stageObj.color}22;color:${stageObj.color};border:1px solid ${stageObj.color}55;">
             ${stageObj.label}
           </span>
@@ -366,6 +383,9 @@ function renderOrderCard(order) {
         <div class="flex gap-sm">
           <button class="btn btn-ghost btn-sm" data-action="print-traveler" data-id="${order.id}">
             📋 Job Traveler
+          </button>
+          <button class="btn btn-ghost btn-sm" data-action="log-scrap-order" data-id="${order.id}" style="color:var(--danger);" title="Log Print Scrap or Failure for this Order">
+            ⚠️ Log Scrap
           </button>
           <button class="btn btn-ghost btn-sm" data-action="generate-invoice" data-id="${order.id}">
             ${ICONS.invoice} Tax Invoice
@@ -528,6 +548,7 @@ function bindEvents(container) {
       else if (action === 'edit-order') openEditOrderModal(id, container);
       else if (action === 'generate-invoice') openInvoiceModal(id);
       else if (action === 'print-traveler') openOrderJobTravelerModal(id);
+      else if (action === 'log-scrap-order') openUniversalScrapLossModal({ orderId: id }, () => render(container));
       else if (action === 'print-receipt') openReceiptModal(orderId, paymentId);
       else if (action === 'convert-quote') convertQuoteToOrder(id, container);
       else if (action === 'delete-order') confirmDeleteOrder(id, container);
@@ -1495,135 +1516,202 @@ function openOrderJobTravelerModal(orderId) {
   const priority = PRIORITY_CONFIG[order.priority || 'standard'] || PRIORITY_CONFIG.standard;
   const stage = getOrderStage(order);
   const stageObj = KANBAN_STAGES.find(s => s.id === stage) || KANBAN_STAGES[3];
+  const qrData = `MNM:JOB:${order.id.slice(0, 8).toUpperCase()}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=110x110&margin=0&data=${encodeURIComponent(qrData)}`;
 
   const body = `
-    <div class="traveler-sheet">
+    <div class="traveler-sheet" id="printable-traveler-sheet">
       <!-- Header -->
       <div class="traveler-header">
-        <div style="display:flex;align-items:center;gap:12px;">
-          <img src="/Logo/logo.png" alt="Made N More Logo" style="height:48px;width:auto;object-fit:contain;" />
+        <div style="display:flex;align-items:center;gap:14px;">
+          <img src="/Logo/logo.png" alt="Made N More Logo" style="height:52px;width:auto;object-fit:contain;" />
           <div>
-            <div style="font-size:1.25rem;font-weight:800;letter-spacing:-0.5px;color:#1e1b4b;">MADE N MORE | 3D PRINTING LABS</div>
-            <div style="font-size:0.78rem;color:#444;margin-top:2px;">WORKSHOP MANUFACTURING JOB TRAVELER & QC ROUTER</div>
+            <div style="font-size:1.3rem;font-weight:900;letter-spacing:-0.5px;color:#1e1b4b;">MADE N MORE | 3D PRINTING LABS</div>
+            <div style="font-size:0.78rem;font-weight:700;color:#555;letter-spacing:0.5px;margin-top:2px;">WORKSHOP MANUFACTURING JOB TRAVELER & QC ROUTER</div>
+            <div style="font-size:0.72rem;color:#777;">Industrial 3D Printing Corridor • Pune, Maharashtra</div>
           </div>
         </div>
-        <div style="text-align:right;">
-          <div style="font-size:1.05rem;font-weight:700;">ORDER #${order.id.slice(0, 8).toUpperCase()}</div>
-          <div style="font-size:0.78rem;color:#555;">Date: ${formatDate(order.createdAt || new Date())}</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <img src="${qrUrl}" alt="Job QR" style="width:58px;height:58px;border:1px solid #ccc;padding:2px;background:#fff;" />
+          <div style="text-align:right;">
+            <div style="font-size:1.15rem;font-weight:900;color:#1e1b4b;">JOB #${order.id.slice(0, 8).toUpperCase()}</div>
+            <div style="font-size:0.78rem;color:#555;font-weight:600;">Date: ${formatDate(order.createdAt || new Date())}</div>
+            <div style="font-size:0.72rem;color:#666;">Routing Tag: <strong style="font-family:monospace;">${qrData}</strong></div>
+          </div>
         </div>
       </div>
 
-      <!-- Specification Grid -->
+      <!-- Machine & Production Routing Grid -->
       <div class="traveler-grid">
-        <div style="border:1px solid #ddd;border-radius:6px;padding:10px;">
-          <div style="font-size:0.75rem;font-weight:700;color:#666;text-transform:uppercase;">Client & Project</div>
-          <div style="font-size:0.95rem;font-weight:700;margin-top:4px;">${escapeHtml(order.clientName)}</div>
-          <div style="font-size:0.8rem;color:#555;margin-top:2px;">Contact: ${escapeHtml(order.clientPhone || '—')}</div>
-          <div style="font-size:0.8rem;color:#555;margin-top:2px;">Project: ${escapeHtml(order.description || 'Custom 3D Printing')}</div>
+        <div style="border:1.5px solid #333;border-radius:6px;padding:10px;background:#fafafa;">
+          <div style="font-size:0.72rem;font-weight:800;color:#444;text-transform:uppercase;letter-spacing:0.5px;">Client & Project Scope</div>
+          <div style="font-size:1rem;font-weight:800;margin-top:3px;color:#111;">${escapeHtml(order.clientName)}</div>
+          <div style="font-size:0.8rem;color:#444;margin-top:2px;">Contact: <strong>${escapeHtml(order.clientPhone || '—')}</strong></div>
+          <div style="font-size:0.8rem;color:#444;margin-top:2px;">Project: ${escapeHtml(order.description || 'Custom 3D Printing')}</div>
+          <div style="font-size:0.78rem;color:#666;margin-top:2px;">Contract Value: <strong>${formatCurrency(order.totalAmount)}</strong></div>
         </div>
 
-        <div style="border:1px solid #ddd;border-radius:6px;padding:10px;">
-          <div style="font-size:0.75rem;font-weight:700;color:#666;text-transform:uppercase;">Production Priority & Routing</div>
-          <div style="font-size:0.95rem;font-weight:700;margin-top:4px;">Priority: ${priority.label.toUpperCase()}</div>
-          <div style="font-size:0.8rem;color:#555;margin-top:2px;">Current Stage: <strong>${stageObj.label}</strong></div>
-          <div style="font-size:0.8rem;color:#555;margin-top:2px;">Contract Value: <strong>${formatCurrency(order.totalAmount)}</strong></div>
+        <div style="border:1.5px solid #333;border-radius:6px;padding:10px;background:#fafafa;">
+          <div style="font-size:0.72rem;font-weight:800;color:#444;text-transform:uppercase;letter-spacing:0.5px;">Machine Routing & Slicing Profile</div>
+          <div style="font-size:0.95rem;font-weight:800;margin-top:3px;color:#111;">Assigned Machine: Snapmaker U1 Dual #01</div>
+          <div style="font-size:0.8rem;color:#444;margin-top:2px;">Plate / Bed Slot: <strong>Center Plate (Slot #1)</strong></div>
+          <div style="font-size:0.8rem;color:#444;margin-top:2px;">Priority: <strong style="color:#d97706;">${priority.label.toUpperCase()}</strong> • Stage: <strong>${stageObj.label}</strong></div>
+          <div style="font-size:0.75rem;color:#555;margin-top:2px;">Profile: 0.20mm High-Speed • 20% Gyroid • 3 Perimeters (1.2mm) • 220°C / 60°C</div>
         </div>
       </div>
 
       <!-- Itemized Assemblies / Components Table -->
-      <div style="font-weight:700;font-size:0.85rem;margin-bottom:6px;">PRODUCTION PARTS & MATERIAL SPECIFICATIONS</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-weight:800;font-size:0.82rem;color:#111;text-transform:uppercase;">1. Production Parts & Material Specifications</span>
+        <span style="font-size:0.72rem;color:#666;">Total Parts: ${items.length}</span>
+      </div>
       <table class="traveler-table">
         <thead>
           <tr>
-            <th style="width:30px;">#</th>
+            <th style="width:30px;text-align:center;">#</th>
             <th>Part / Component Name</th>
             <th>Material Spec</th>
             <th>Colorway</th>
-            <th style="text-align:center;">Qty</th>
-            <th>Print Profile</th>
-            <th>Status</th>
+            <th style="text-align:center;width:50px;">Qty</th>
+            <th>Target Sliced Mass</th>
+            <th style="text-align:center;width:90px;">Print Check</th>
           </tr>
         </thead>
         <tbody>
           ${items.length > 0 ? items.map((it, idx) => `
             <tr>
-              <td style="text-align:center;">${idx + 1}</td>
+              <td style="text-align:center;font-weight:700;">${idx + 1}</td>
               <td><strong>${escapeHtml(it.name)}</strong></td>
-              <td>${escapeHtml(it.material || 'PLA+')}</td>
-              <td>${escapeHtml(it.color || 'Default')}</td>
-              <td style="text-align:center;font-weight:700;">${it.quantity || 1}</td>
-              <td>0.20mm Standard / 20% Infill</td>
-              <td>[ &nbsp; ] Printed</td>
+              <td><span style="font-weight:700;">${escapeHtml(it.material || 'PLA+')}</span></td>
+              <td>${escapeHtml(it.color || 'Standard')}</td>
+              <td style="text-align:center;font-weight:800;font-size:0.95rem;">${it.quantity || 1}</td>
+              <td>${it.grams ? `${it.grams}g` : '—'}</td>
+              <td style="text-align:center;font-weight:700;">[ &nbsp; ] Done</td>
             </tr>
           `).join('') : `
             <tr>
-              <td colspan="7" style="text-align:center;color:#666;">No individual parts itemized. Refer to main order description.</td>
+              <td colspan="7" style="text-align:center;color:#666;padding:12px;">Refer to master order instructions: ${escapeHtml(order.description || 'Production Batch')}</td>
             </tr>
           `}
         </tbody>
       </table>
 
-      <!-- Quality Control Sign-Off Table -->
-      <div style="font-weight:700;font-size:0.85rem;margin-bottom:6px;">POST-PRINT QUALITY INSPECTION & DISPATCH CHECKLIST</div>
+      <!-- Workshop Hardware & Inserts BOM Kit Table -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;margin-top:12px;">
+        <span style="font-weight:800;font-size:0.82rem;color:#111;text-transform:uppercase;">2. Workshop Hardware & Heat-Set Inserts BOM Kit</span>
+        <span style="font-size:0.72rem;color:#666;">Verify stock in hardware drawers before starting print</span>
+      </div>
       <table class="traveler-table">
         <thead>
           <tr>
-            <th style="width:40px;">Check</th>
-            <th>Inspection Parameter</th>
-            <th>Acceptance Criteria</th>
-            <th style="width:150px;">Verified By / Value</th>
+            <th style="width:40px;text-align:center;">Pull</th>
+            <th>Hardware Component / Fastener</th>
+            <th>Technical Specification</th>
+            <th>Physical Drawer Location</th>
+            <th style="text-align:center;width:70px;">Req. Qty</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td style="text-align:center;">[ &nbsp; ]</td>
-            <td><strong>Dimensional Accuracy</strong></td>
-            <td>Critical dimensions within ±0.20mm (Digital Caliper)</td>
-            <td>_____________ mm</td>
+            <td style="text-align:center;font-weight:700;">[ &nbsp; ]</td>
+            <td><strong>M3 Brass Heat-Set Threaded Inserts</strong></td>
+            <td>M3 x 4.0mm (OD 4.6mm), Knurled High-Torque</td>
+            <td>📍 Bin A2 - Hardware Drawer</td>
+            <td style="text-align:center;font-weight:700;">As per CAD</td>
           </tr>
           <tr>
-            <td style="text-align:center;">[ &nbsp; ]</td>
-            <td><strong>Mass & Density Audit</strong></td>
-            <td>Finished weight within ±3% of sliced model grams</td>
-            <td>_____________ g</td>
+            <td style="text-align:center;font-weight:700;">[ &nbsp; ]</td>
+            <td><strong>M3 Socket Head Cap Screws</strong></td>
+            <td>M3 x 8mm / 12mm Black Oxide Grade 12.9</td>
+            <td>📍 Bin B1 - Fasteners Shelf</td>
+            <td style="text-align:center;font-weight:700;">As per CAD</td>
           </tr>
           <tr>
-            <td style="text-align:center;">[ &nbsp; ]</td>
-            <td><strong>Layer Adhesion & Perimeter Bonding</strong></td>
-            <td>Zero delamination, solid wall fusion</td>
-            <td>Pass / Fail</td>
-          </tr>
-          <tr>
-            <td style="text-align:center;">[ &nbsp; ]</td>
-            <td><strong>Surface Finish & Cosmetics</strong></td>
-            <td>No stringing, z-banding, or severe scarring</td>
-            <td>Pass / Fail</td>
-          </tr>
-          <tr>
-            <td style="text-align:center;">[ &nbsp; ]</td>
-            <td><strong>Client Photo Proof</strong></td>
-            <td>High-res photo sent to client via WhatsApp</td>
-            <td>Timestamp: ______</td>
-          </tr>
-          <tr>
-            <td style="text-align:center;">[ &nbsp; ]</td>
-            <td><strong>Packaging & Dispatch Label</strong></td>
-            <td>Protective bubble-wrap & box sealed</td>
-            <td>Courier / Tracking: ___</td>
+            <td style="text-align:center;font-weight:700;">[ &nbsp; ]</td>
+            <td><strong>Neodymium Magnets (N52) / Bearings</strong></td>
+            <td>6x3mm Round Disk Magnets or 608-2RS</td>
+            <td>📍 Bin B4 / Bin C3</td>
+            <td style="text-align:center;font-weight:700;">Optional</td>
           </tr>
         </tbody>
       </table>
 
-      <!-- Operator Signature -->
-      <div style="display:flex;justify-content:space-between;margin-top:16px;padding-top:10px;border-top:1px solid #ccc;font-size:0.82rem;">
-        <div>Manufacturing Operator: _______________________</div>
-        <div>QC Inspector Sign-off: _______________________</div>
+      <!-- Quality Control Sign-Off Table -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;margin-top:12px;">
+        <span style="font-weight:800;font-size:0.82rem;color:#111;text-transform:uppercase;">3. Post-Print Quality Inspection & Dispatch Router</span>
+        <span style="font-size:0.72rem;color:#666;">Mandatory 100% QA Inspection</span>
+      </div>
+      <table class="traveler-table">
+        <thead>
+          <tr>
+            <th style="width:40px;text-align:center;">Pass</th>
+            <th>Inspection Parameter</th>
+            <th>Engineering Acceptance Criteria</th>
+            <th style="width:170px;">Measured Value / Inspector</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align:center;font-weight:700;">[ &nbsp; ]</td>
+            <td><strong>1. Dimensional Caliper Audit</strong></td>
+            <td>Critical dimensions within ±0.15mm (Digital Caliper)</td>
+            <td>Actual: ____________ mm</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;font-weight:700;">[ &nbsp; ]</td>
+            <td><strong>2. Mass & Density Audit</strong></td>
+            <td>Finished weight within ±3% of sliced model mass</td>
+            <td>Actual: ____________ g</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;font-weight:700;">[ &nbsp; ]</td>
+            <td><strong>3. Layer Adhesion & Perimeter Bonding</strong></td>
+            <td>Zero delamination, solid wall fusion, solid top layers</td>
+            <td>[ &nbsp; ] Pass &nbsp; [ &nbsp; ] Reject</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;font-weight:700;">[ &nbsp; ]</td>
+            <td><strong>4. Heat-Set Insert Seating & Torque</strong></td>
+            <td>Inserts pressed perpendicular, flush with boss, threads clear</td>
+            <td>[ &nbsp; ] Pass &nbsp; [ &nbsp; ] N/A</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;font-weight:700;">[ &nbsp; ]</td>
+            <td><strong>5. Surface Cosmetics & Post-Processing</strong></td>
+            <td>Supports deburred, zero severe stringing, clean finish</td>
+            <td>[ &nbsp; ] Pass &nbsp; [ &nbsp; ] Reject</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;font-weight:700;">[ &nbsp; ]</td>
+            <td><strong>6. Client WhatsApp Photo Proof</strong></td>
+            <td>High-res photo taken on turntable & sent to client</td>
+            <td>Timestamp: ___________</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;font-weight:700;">[ &nbsp; ]</td>
+            <td><strong>7. Protective Packaging & Dispatch</strong></td>
+            <td>Sealed in bubble-wrap, protective carton box, shipping label</td>
+            <td>Waybill #: _____________</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Operator Signature & Sign-Off -->
+      <div style="display:flex;justify-content:space-between;margin-top:16px;padding-top:12px;border-top:2px solid #111;font-size:0.82rem;">
+        <div>
+          <div>Manufacturing Operator: _________________________________</div>
+          <div style="font-size:0.72rem;color:#666;margin-top:3px;">Print started & verified clean first layer</div>
+        </div>
+        <div>
+          <div>Lead QC Inspector: _________________________________</div>
+          <div style="font-size:0.72rem;color:#666;margin-top:3px;">Parts verified to drawing tolerances & packed</div>
+        </div>
       </div>
     </div>
   `;
 
   showModal({
-    title: 'Print Workshop Job Traveler Card',
+    title: `Workshop Job Traveler — Order #${order.id.slice(0, 8).toUpperCase()}`,
     body,
     confirmText: '🖨️ Print Sheet (Ctrl+P)',
     confirmClass: 'btn-primary',

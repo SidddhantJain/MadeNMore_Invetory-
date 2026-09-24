@@ -2824,6 +2824,35 @@ h4 { font-size: 1rem; }
   font-weight: 700;
 }
 
+/* Root Cause Scrap Logger Chips */
+.root-cause-chip {
+  padding: 6px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+
+.root-cause-chip:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: var(--text-primary);
+}
+
+.root-cause-chip.selected {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 700;
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    35. WIDE INVOICE & BILLING OVERHAUL
    ══════════════════════════════════════════════════════════════════════ */
@@ -3225,6 +3254,31 @@ h4 { font-size: 1rem; }
     padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;
+  }
+
+  /* 50x30mm Thermal Label Printing */
+  body.printing-thermal {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  body.printing-thermal .modal-overlay,
+  body.printing-thermal .modal {
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  body.printing-thermal .thermal-label {
+    width: 50mm !important;
+    height: 30mm !important;
+    border: none !important;
+    page-break-inside: avoid !important;
+    margin: 0 auto !important;
   }
 }
 

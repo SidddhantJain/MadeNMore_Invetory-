@@ -230,10 +230,31 @@ function renderFilamentGrid(items) {
               <div class="filament-card-name">${escapeHtml(f.name)}</div>
             </div>
 
-            <div class="filament-card-meta" style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <div class="filament-card-meta" style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
               ${getMaterialBadge(f.material)}
               <span class="badge ${f.usable !== false ? 'badge-yes' : 'badge-no'}">${f.usable !== false ? 'Usable' : 'Not Usable'}</span>
               <span class="badge" style="background:rgba(255,255,255,0.06);color:var(--text-secondary);font-size:0.7rem;">${escapeHtml(f.brand || 'Numakers')}</span>
+            </div>
+
+            <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);padding:6px 8px;border-radius:var(--radius-sm);">
+              ${f.lastWeighed ? `
+                <div>
+                  <span class="badge" style="background:rgba(34,197,94,0.14);color:#22c55e;border:1px solid rgba(34,197,94,0.3);font-size:0.72rem;font-weight:700;">
+                    ⚖️ ${f.remainingGrams || (f.spools * 1000)}g net
+                  </span>
+                  <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">Tare: ${f.tareWeight || 210}g • Calibrated</div>
+                </div>
+              ` : `
+                <div>
+                  <span class="badge" style="background:rgba(234,179,8,0.14);color:#eab308;border:1px solid rgba(234,179,8,0.3);font-size:0.72rem;">
+                    ⚖️ ~${Math.round((f.spools || 1) * 1000)}g (Tare ${f.tareWeight || 210}g)
+                  </span>
+                  <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">Unweighed Reel</div>
+                </div>
+              `}
+              <button class="btn btn-secondary btn-sm" data-action="tare" data-id="${f.id}" style="font-size:0.72rem;padding:3px 8px;" title="Weigh spool on digital scale & tare empty reel">
+                ⚖️ Tare
+              </button>
             </div>
 
             <div class="filament-card-bottom">
@@ -292,6 +313,9 @@ function renderFilamentTable(items) {
                   <span class="spool-stepper-val">${f.spools || 0}</span>
                   <button class="spool-stepper-btn" data-action="inc-spool" data-id="${f.id}">+</button>
                 </div>
+                <div style="font-size:0.7rem;color:${f.lastWeighed ? '#22c55e' : 'var(--text-muted)'};margin-top:2px;">
+                  ${f.lastWeighed ? `⚖️ ${f.remainingGrams || (f.spools * 1000)}g net` : `⚖️ Tare: ${f.tareWeight || 210}g`}
+                </div>
               </td>
               <td><span class="badge ${f.usable !== false ? 'badge-yes' : 'badge-no'}">${f.usable !== false ? 'Usable' : 'Not Usable'}</span></td>
               <td style="color:var(--text-secondary)">${escapeHtml(f.brand || 'Numakers')}</td>
@@ -345,6 +369,7 @@ function renderConsumablesView(consumables, lowStockItems) {
               <div class="consumable-top">
                 <span class="consumable-cat">${escapeHtml(c.category || 'General')}</span>
                 <div style="display:flex;gap:4px;">
+                  <button class="btn-icon btn-sm" data-action="bin-label" data-id="${c.id}" title="Print 50x30mm Bin Thermal Label">🏷️</button>
                   <button class="btn-icon btn-sm" data-action="edit-consumable" data-id="${c.id}" title="Edit">${ICONS.edit}</button>
                   <button class="btn-icon btn-sm" data-action="delete-consumable" data-id="${c.id}" title="Delete" style="color:var(--danger);">${ICONS.trash}</button>
                 </div>
@@ -371,18 +396,25 @@ function renderConsumablesView(consumables, lowStockItems) {
 
                 <div class="stock-stepper">
                   <button class="btn-stepper" data-action="step-consumable" data-delta="-10" data-id="${c.id}" title="-10">-10</button>
+                  <button class="btn-stepper" data-action="step-consumable" data-delta="-4" data-id="${c.id}" title="Fast pull 4 pcs for job assembly">-4</button>
                   <button class="btn-stepper" data-action="step-consumable" data-delta="-1" data-id="${c.id}" title="-1">-1</button>
                   <button class="btn-stepper" data-action="step-consumable" data-delta="1" data-id="${c.id}" title="+1">+1</button>
                   <button class="btn-stepper" data-action="step-consumable" data-delta="10" data-id="${c.id}" title="+10">+10</button>
                 </div>
               </div>
 
+              <div style="margin-top:8px;display:flex;gap:6px;">
+                <button class="btn btn-secondary btn-sm" data-action="bin-label" data-id="${c.id}" style="width:100%;font-size:0.72rem;padding:4px;" title="Print 50x30mm Thermal Label for storage bin">
+                  🏷️ Print 50x30mm Bin Label
+                </button>
+              </div>
+
               ${isLow ? `
-                <div style="font-size:0.72rem;color:var(--danger);font-weight:700;display:flex;align-items:center;gap:4px;">
+                <div style="font-size:0.72rem;color:var(--danger);font-weight:700;display:flex;align-items:center;gap:4px;margin-top:6px;">
                   ⚠️ Replenish soon (Below safety stock)
                 </div>
               ` : `
-                <div style="font-size:0.72rem;color:#4ade80;display:flex;align-items:center;gap:4px;">
+                <div style="font-size:0.72rem;color:#4ade80;display:flex;align-items:center;gap:4px;margin-top:6px;">
                   ✓ Optimal inventory buffer
                 </div>
               `}
@@ -473,6 +505,9 @@ function bindEvents(container) {
       if (action === 'thermal-label') {
         const filament = getAll('filaments').find(f => f.id === id);
         if (filament) openThermalLabelModal(filament);
+      } else if (action === 'bin-label') {
+        const consumable = getAll('consumables').find(c => c.id === id);
+        if (consumable) openConsumableThermalLabelModal(consumable);
       } else if (action === 'tare') {
         openTareCalculatorModal(id, () => render(container));
       } else if (action === 'edit') {
@@ -882,5 +917,81 @@ function openConsumableModal(editId = null) {
     },
   });
 }
+
+/** 50x30mm Thermal Storage Bin QR Label Modal (Phase 4) */
+export function openConsumableThermalLabelModal(c) {
+  const qrData = `MNM:BIN:${c.id}:${encodeURIComponent(c.name)}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=0&data=${encodeURIComponent(qrData)}`;
+
+  const body = `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:18px;padding:10px 0;">
+      <div style="font-size:0.85rem;color:var(--text-secondary);text-align:center;">
+        Industrial 50x30mm Thermal Bin Label (Drawer / Storage Rack Organizer)
+      </div>
+
+      <!-- 50x30mm Physical Aspect Ratio Container -->
+      <div class="thermal-label" id="printable-bin-thermal-label">
+        <div class="thermal-label-header">
+          <span class="thermal-brand">MADE N MORE • STORAGE BIN</span>
+          <span class="thermal-tare-badge" style="background:#2563eb;">${escapeHtml(c.location || 'DRAWER A1')}</span>
+        </div>
+
+        <div class="thermal-label-body">
+          <img class="thermal-qr" src="${qrUrl}" alt="QR" />
+          <div class="thermal-details">
+            <div class="thermal-material" style="font-size:7.5pt;font-weight:900;line-height:1.2;">
+              ${escapeHtml(c.name)}
+            </div>
+            <div style="font-size:6.2pt;color:#222;margin-top:0.5mm;">
+              ${escapeHtml(c.specs || c.category || 'Hardware')}
+            </div>
+            <div style="font-size:6.2pt;color:#444;">
+              Unit Cost: ${formatCurrency(c.costPerUnit || 0)} • Min: ${c.minStock || 0} ${c.unit || 'pcs'}
+            </div>
+            <div style="font-weight:800;font-size:6.8pt;margin-top:0.5mm;color:#1e1b4b;">
+              STOCK BUFFER: ${c.stock || 0} ${c.unit || 'pcs'}
+            </div>
+          </div>
+        </div>
+
+        <div class="thermal-footer">
+          <span>CAT: ${escapeHtml(c.category?.slice(0, 15) || 'HARDWARE')}</span>
+          <span>ID: ${c.id.slice(0, 8).toUpperCase()}</span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;width:100%;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="btn-trigger-bin-print" style="padding:10px 20px;">
+          🖨️ Print 50x30mm Bin Sticker
+        </button>
+        <button class="btn btn-secondary" id="btn-copy-bin-qr" style="padding:10px 20px;">
+          📋 Copy Bin QR Payload
+        </button>
+      </div>
+    </div>
+  `;
+
+  showModal({
+    title: `Thermal Bin Label (50x30mm) — ${c.name}`,
+    body,
+    confirmText: 'Done',
+    onReady: () => {
+      document.getElementById('btn-copy-bin-qr')?.addEventListener('click', () => {
+        navigator.clipboard.writeText(qrData).then(() => {
+          showToast('Copied Bin QR payload to clipboard!', 'success');
+        });
+      });
+
+      document.getElementById('btn-trigger-bin-print')?.addEventListener('click', () => {
+        document.body.classList.add('printing-thermal');
+        window.print();
+        setTimeout(() => {
+          document.body.classList.remove('printing-thermal');
+        }, 800);
+      });
+    },
+  });
+}
+
 
 
