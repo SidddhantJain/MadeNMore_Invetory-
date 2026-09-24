@@ -70,7 +70,8 @@
   --shadow-glow: 0 0 24px rgba(139, 92, 246, 0.15);
 
   /* Typography */
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   --fw-light: 300;
   --fw-normal: 400;
   --fw-medium: 500;
@@ -151,25 +152,142 @@ h4 { font-size: 1rem; }
   display: flex;
   height: 100vh;
   overflow: hidden;
+  background: var(--bg-primary);
 }
 
-#sidebar {
-  width: var(--sidebar-width);
-  min-width: var(--sidebar-width);
-  height: 100vh;
-  background: var(--bg-sidebar);
-  border-right: 1px solid var(--border);
-  backdrop-filter: blur(20px);
+.main-wrapper {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  transition: width var(--transition), min-width var(--transition);
-  z-index: 100;
+  height: 100vh;
+  min-width: 0;
   overflow: hidden;
+  position: relative;
+}
+
+/* ── 4.1 TOP EXECUTIVE COMMAND HEADER ─────────────────────── */
+.top-header-bar {
+  height: 64px;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-xl);
+  border-bottom: 1px solid var(--border);
+  background: rgba(11, 13, 23, 0.85);
+  backdrop-filter: blur(20px);
+  z-index: 90;
+  gap: var(--space-md);
+}
+
+.top-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex: 1;
+  max-width: 550px;
+}
+
+.top-search-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 8px 16px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  width: 100%;
+  max-width: 380px;
+  transition: all var(--transition-fast);
+}
+
+.top-search-trigger:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.top-search-kbd {
+  margin-left: auto;
+  font-size: 0.7rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.top-header-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.top-fleet-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: var(--radius-full);
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  color: #93c5fd;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.top-fleet-pill:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.45);
+}
+
+.top-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.top-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.top-action-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.top-action-btn.primary {
+  background: var(--accent-gradient);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(139, 92, 246, 0.3);
+}
+
+.top-action-btn.primary:hover {
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.5);
 }
 
 #content {
   flex: 1;
-  height: 100vh;
+  height: calc(100vh - 64px);
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--space-xl);
@@ -3032,18 +3150,272 @@ h4 { font-size: 1rem; }
     width: 100% !important;
   }
 
-  /* Thermal label print specifics */
-  body.printing-thermal .thermal-label {
-    visibility: visible !important;
-    border: none !important;
-    margin: 0 !important;
-    padding: 2mm !important;
-    page-break-inside: avoid;
-  }
-
-  @page {
-    margin: 10mm;
-    size: auto;
-  }
+/* ══════════════════════════════════════════════════════════════════════
+   40. EXECUTIVE COMMAND CENTER & BUSINESS SUITE STYLES
+   ══════════════════════════════════════════════════════════════════════ */
+.dashboard-farm-strip {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 12px 0 4px;
+  margin-bottom: var(--space-lg);
+  scrollbar-width: thin;
 }
+
+.farm-machine-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  min-width: 240px;
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: all var(--transition-fast);
+}
+
+.farm-machine-chip:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.farm-machine-chip.active-print {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.farm-chip-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.farm-chip-dot.printing {
+  background: #3b82f6;
+  box-shadow: 0 0 10px #3b82f6;
+}
+
+.farm-chip-dot.idle {
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+}
+
+.farm-chip-dot.maintenance {
+  background: #ef4444;
+}
+
+.farm-chip-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.farm-chip-name {
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.farm-chip-sub {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+/* Actionable Priorities & Alerts Strip */
+.attention-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.attention-card {
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.attention-card.alert-low-stock {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+}
+
+.attention-card.alert-receivables {
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  color: #c4b5fd;
+}
+
+.attention-card.alert-maintenance {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+
+.attention-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.attention-body {
+  flex: 1;
+}
+
+.attention-title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  margin-bottom: 2px;
+  color: var(--text-primary);
+}
+
+.attention-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Thermal Spool Label Sheet (50x30mm) */
+.thermal-sheet-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.thermal-label-card {
+  width: 50mm;
+  height: 30mm;
+  background: #ffffff;
+  color: #000000;
+  border-radius: 4px;
+  padding: 2.5mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  margin: 0 auto;
+  font-family: var(--font);
+  user-select: none;
+}
+
+.thermal-label-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 1.5mm;
+}
+
+.thermal-label-brand {
+  font-weight: 800;
+  font-size: 8pt;
+  letter-spacing: -0.2px;
+}
+
+.thermal-label-mat {
+  font-size: 7pt;
+  font-weight: 700;
+  background: #000;
+  color: #fff;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.thermal-label-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2mm;
+  margin: 1mm 0;
+}
+
+.thermal-label-qr {
+  width: 14mm;
+  height: 14mm;
+  flex-shrink: 0;
+}
+
+.thermal-label-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.thermal-label-color {
+  font-weight: 800;
+  font-size: 8pt;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thermal-label-weight {
+  font-size: 7.5pt;
+  color: #333;
+  margin-top: 1mm;
+}
+
+.thermal-label-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 6pt;
+  color: #666;
+  border-top: 0.5px solid #eee;
+  padding-top: 1mm;
+}
+
+/* Tiered Volume Discount Pricing Table */
+.tier-pricing-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-md) 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.tier-pricing-table th {
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tier-pricing-table td {
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.tier-pricing-table tr:hover td {
+  background: var(--bg-card-hover);
+}
+
+.tier-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
 

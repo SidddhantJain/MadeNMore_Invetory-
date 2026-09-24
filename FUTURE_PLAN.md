@@ -1,59 +1,51 @@
-# 🗺️ Made N More & 3D Printing Labs — Master Operator Roadmap & Business System
-### The Maker-CEO Operating System: 100% Focused on Streamlining Internal Workshop Management, Profitability & Machine Fleets
-**Document Version:** 4.0 (Owner & Operator Command Center)  
-**Target User:** Business Owner & Workshop Technicians  
-**Primary Goal:** Automate daily administrative friction, quoting, fleet monitoring, material tracking, and job accounting so the owner can focus on making and scaling.  
+# 🗺️ Made N More & 3D Printing Labs — Master Strategic Roadmap & Industrial OS Blueprint
+### The Next-Generation Manufacturing Executive System (MES) & Farm Scaling Engine
+**Document Version:** 5.0 (Industrial Enterprise & Operator Command Center)  
+**Target Operator:** Business Owner, Farm Manager & Production Technicians  
+**Core Purpose:** Automate all administrative, quoting, hardware telemetry, material tracking, and financial overhead so the owner can scale from 4 machines to 20+ machines with zero added managerial friction.
 
 ---
 
-## 🎯 Strategic Direction: Built For YOU, The Business Owner
+## 🎯 Executive Vision: The Operator's Unfair Advantage
 
-> **Zero Client-Facing Bloat**: The customer will **NOT** be seeing or using this software. All customer-facing portals, public tracking links, and external web slicers are deferred to a distant, late-stage horizon. 
-> 
-> **Every single screen, calculation, and button is built as an internal support tool for YOU to run, manage, quote, and scale the business effortlessly.**
+Made N More / 3D Printing Labs is positioned as Pune's premier B2B digital manufacturing and rapid prototyping service. Our competitive moat is **velocity, precision, and zero administrative waste**.
 
 ```mermaid
 graph TB
-    subgraph Slicer & Workshop Automation
-        T1[G-Code & 3MF Slicer Metadata Drop-Zone]
-        T2[Instant Gram & Duration Auto-Extraction]
-        T3[Automatic Spool Inventory Gram Deduction]
+    subgraph Client Acquisition & Quoting
+        Q1[Customer CAD / STL / 3MF Drop] --> Q2[Automated Volume & Geometry Parsing]
+        Q2 --> Q3[Multi-Tier Pricing Engine: 1 / 5 / 10 / 50 pcs]
+        Q3 --> Q4[1-Click WhatsApp Proposal & Formal GST Proforma]
+        Q4 --> Q5[Milestone Advance Lock: 28% - 50%]
     end
 
-    subgraph Hardware Farm Control Hub
-        F1[Multi-Printer Fleet Dashboard: Snapmaker U1, Voron, Bambu]
-        F2[Live Telemetry: Nozzle/Bed Temperatures & Heaters]
-        F3[Job Queue Dispatcher & Plate Status]
-        F4[Running Hours Odometer & Maintenance Preventative Alerts]
+    subgraph Autonomous Farm Operations
+        Q5 --> P1[Production Kanban & Job Traveler Router]
+        P1 --> P2[Moonraker / Klipper Fleet Scheduler]
+        P2 --> P3[Live Sensor Telemetry: Extruder, Bed & Enclosure]
+        P3 --> P4[Zero-Touch Spool Inventory Deduction on Print Complete]
+        P4 --> P5[Automated Scrap Loss & Failure Logging]
     end
 
-    subgraph High-Velocity Quoting & Cash Flow
-        C1[Instant Quoter with 1-Click WhatsApp Copy]
-        C2[Milestone Installment Tracking: 28% / 22% / 50%]
-        C3[GST Tax Invoicing & Payment Receipts]
-        C4[Daily Net Cash Flow, Material Expenses & P&L]
+    subgraph Logistics & Material Warehouse
+        P4 --> W1[Physical Thermal QR Rack Sync 50x30mm]
+        W1 --> W2[Gross Digital Tare Scale Subtractor]
+        W2 --> W3[Consumables & Hardware Track: Inserts, Nozzles, IPA]
+        W3 --> W4[Automated Supplier Reorder Alerts]
     end
 
-    subgraph Material & Consumables Accounting
-        M1[Numakers 3D Visualizer & Color Swatches]
-        M2[Gross Tare Weight Scale Calculation]
-        M3[Scrap Loss & Failed Print Recovery Log]
+    subgraph Financial Intelligence & P&L
+        Q5 --> F1[Financial Cashflow & Ledger]
+        P4 --> F2[Electricity & Machine Wear Cost Amortization]
+        F1 --> F3[Monthly Executive P&L Statement]
+        F2 --> F3
+        F3 --> F4[Net Operating Margin & Expansion Capital Reserves]
     end
-
-    T1 --> T2 --> T3
-    T2 --> C1
-    T2 --> F3
-    F1 <--> F2
-    F3 --> F1
-    C1 --> C2
-    C2 --> C3
-    T3 --> M1
-    M3 --> C4
 ```
 
 ---
 
-## 🗓️ Master Phased Roadmap: The Operator's Support System
+## 🗓️ Master Phased Roadmap: From Workshop to Industrial Digital Factory
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
@@ -61,14 +53,14 @@ graph TB
 │ • Multi-item part assemblies under one order                                           │
 │ • 8-Stage visual Kanban board with drag & drop                                         │
 │ • GST Tax Invoicing (SAC 9988 / HSN 3916) with A4 PDF print view                       │
-│ • Individual milestone installment receipt vouchers (28% deposit, 22% proof, 50% final)│
+│ • Milestone installment receipt vouchers (28% deposit, 22% proof, 50% final)           │
 └────────────────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │ PHASE 2 (Delivered): Multiple 3D Printer Farm, LAN Fleet Hub & Timelapse Archiver     │
 │ • Snapmaker U1 Direct LAN Moonraker Bridge (live nozzle/bed telemetry, port 80)        │
-│ • Auto-Subnet Scanner (auto-detects DHCP IP shifts across 192.168.0.100-200)           │
+│ • Server-Side Proxy Fallback: Zero CORS restrictions across LAN/Wi-Fi devices          │
 │ • Real-time status cards (Snapmaker U1, Voron CoreXY, Bambu Lab P1S, Ender Plus)       │
 │ • Live Chamber/Bed/Nozzle thermal telemetry with target vs actual gauges               │
 │ • Timelapse Video Streamer & Bulk Downloader: 1-Click sequential download of all .mp4s │
@@ -78,116 +70,124 @@ graph TB
                                     │
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 3 (Delivered): Owner Support Tools, Slicer Ingestion & QC Job Travelers          │
-│ • In-Browser G-Code & 3MF parser: Drag & drop sliced files to auto-read grams & hours  │
+│ PHASE 3 (Delivered): Operator Support Tools, Slicer Ingestion & QC Job Travelers      │
+│ • In-Browser G-Code, 3MF & STL parser: Drag & drop sliced files to auto-read mass/time │
 │ • 1-Click WhatsApp Milestone Quote Generator with deposit & QC dispatch terms          │
 │ • Printable Workshop Job Traveler Card (📋): A4 QC checklist & router for shop floor   │
 │ • Zero-Touch Spool Deduction: Auto-decrements grams on print complete                  │
 │ • Scrap Loss & Failed Print Logger: Deducts wasted filament and logs ledger loss       │
-│ • Digital Scale Tare Tool: Exact usable filament calculation subtracting spool spool tare│
+│ • Digital Scale Tare Tool: Exact usable filament calculation subtracting spool tare    │
 └────────────────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 4 (Next Priority): Deep Material Accounting & Physical Barcode/QR Rack Sync      │
-│ • Physical thermal QR label printing (50x30mm) for spool racks                         │
-│ • Workshop consumables tracking: Resins (ml), nozzles, IPA, and heat-set brass inserts │
-│ • Automated low-spool threshold replenishment notifications                            │
+│ PHASE 4 (Active Upgrade): Warehouse Materials Barcode/QR Management & Consumables      │
+│ • Thermal QR Label Generation (50x30mm) for spool storage racks and bin organization   │
+│ • Workshop hardware tracking: Brass heat-set inserts (M2–M5), high-flow nozzles, IPA   │
+│ • Live inventory valuation (Total raw material worth in INR on dashboard)              │
+│ • Automated low-spool threshold replenishment notifications (< 200g buffer)            │
+│ • Multi-spool batch weight auditor using gross digital scale tare calculation          │
 └────────────────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 5: Internal Financial Intelligence & Workshop P&L                                │
-│ • Monthly Profit & Loss statements (Gross Revenue vs Raw Filament vs Electricity)     │
-│ • Machine depreciation & wear reserves allocation                                      │
-│ • Material consumption forecasting (which colors to reorder before running dry)        │
+│ PHASE 5 (Next Priority): Deep Financial Intelligence & Cost Accounting Engine          │
+│ • Granular Job Costing Breakdown: Material + Electricity + Machine Wear + Labor Buffer │
+│ • Multi-Tier Volume Discount Matrix (1, 5, 10, 25, 50 pcs with price-per-part curves) │
+│ • Monthly automated Profit & Loss statements (Gross Sales vs Material vs Power vs Net) │
+│ • Machine depreciation & wear reserves allocation (amortizing ₹55,000 capital asset)   │
+│ • Material consumption forecasting (reorder alerts before peak production runs dry)    │
 └────────────────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ PHASE 6 (Distant Scaled Horizon): Client Self-Service Portals                          │
-│ • Public tracking links (Deferred until printer farm exceeds 10 machines)              │
-│ • Web-to-print automated client slicing                                                │
+│ PHASE 6: Automated Quotation Engine, Geometry DFM Analyzer & Slicing AI                │
+│ • Direct STL Geometry analysis (bounding box, surface area, volume, mass estimate)     │
+│ • Design For Manufacturability (DFM) warnings: minimum wall thickness, overhang angles │
+│ • Material Recommendation Engine (e.g. recommending PETG-HS over PLA for outdoors)    │
+│ • 1-Click Formal Commercial PDF Proforma Quotation with custom B2B terms               │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ PHASE 7: Autonomous Farm Scheduler, Auto-Preheat Dispatcher & Klipper Queue Daemon     │
+│ • Centralized Print Queue Dispatcher: Automatically routes queued jobs to idle printer │
+│ • Auto-Preheat on Job Assignment: Wakes up bed/nozzle heaters 5 minutes prior to print │
+│ • Print Bed Ejection / Conveyor support for continuous unattended batch production     │
+│ • Multi-printer power load balancer (prevents tripping workshop breaker during heatup) │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ PHASE 8 (Enterprise Scaling): B2B Client Portal & Secure File Vault                    │
+│ • Private white-labeled client link: Clients can upload CAD files under mutual NDA     │
+│ • Live stage tracker without revealing internal machine IPs or farm secrets            │
+│ • Instant re-order button for previously verified production batches                   │
+│ • Automated delivery note & courier tracking integration (Shiprocket / Bluedart)       │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🛠️ Owner Support Tool Specifications
+## 💰 Commercial Pricing Architecture & Unit Economics Formula
 
-### 1. 📂 Slicer Metadata Ingestion Tool (G-Code & 3MF Parser)
-- **Problem**: When slicing in Bambu Studio, OrcaSlicer, or Cura, the owner has to manually read the grams and hours and retype them into calculator and orders.
-- **Solution**:
-  - Drag and drop the `.gcode` or `.3mf` file directly into the app.
-  - Browser FileReader reads the comment metadata:
-    ```text
-    ; filament used [g] = 142.85
-    ; total estimated time = 3h 24m 12s
-    ; nozzle_temperature = 245
-    ; bed_temperature = 80
-    ```
-  - Instantly populates:
-    - Mass in grams: `142.85 g`
-    - Print duration: `3.4 hrs`
-    - Recommended quote price: `₹[Amount]`
-  - Two 1-Click Action Buttons:
-    1. **"🚀 Dispatch to Printer & Reserve Spool"**: Routes the part directly to an idle machine in the fleet.
-    2. **"📋 Copy WhatsApp Quote"**: Formats the price for the client.
+To maintain a **60% to 75% gross profit margin** while remaining extremely competitive against industrial injection molders and local bureaus, all jobs are priced using our standardized cost equation:
 
-### 2. 💬 1-Click WhatsApp Quick-Quote Generator
-- **Problem**: Manually typing out quotes on WhatsApp is slow, inconsistent, and takes valuable time.
-- **Solution**:
-  - In the Calculator, clicking **"📋 Copy WhatsApp Quote"** generates an elegant, business-ready WhatsApp message formatted with emojis and bold styling:
-    ```text
-    🖨️ *Made N More | 3D Printing Labs — Production Quote*
-    ---------------------------------------------
-    *Project:* Custom Prototype Part
-    *Material:* PETG-HS (Pitch Black)
-    *Part Mass:* 142g | *Est. Print Time:* 3.5 hrs
-    *Manufacturing Tolerances:* ±0.2mm (Industrial FDM)
+$$\text{Final Part Quote} = \left[ (\text{Mass} \times C_{\text{mat}}) + (\text{Time} \times C_{\text{elec}}) + (\text{Time} \times C_{\text{wear}}) + C_{\text{prep}} \right] \times M_{\text{margin}} \times D_{\text{volume}}$$
 
-    💰 *Total Job Quote:* ₹680 (All inclusive)
-    📦 *Standard Milestone Terms:*
-    • 30% Advance to schedule production
-    • Balance upon photo proof & dispatch
-
-    _UPI / Bank Transfer details available upon confirmation._
-    ```
-  - Clicking **"💬 Open WhatsApp"** opens WhatsApp Web directly with this message ready to send!
-
-### 3. 📉 Scrap Loss & Failed Print Recovery Tracker
-- **Problem**: In 3D printing, prints occasionally fail due to bed detachment, power drops, or filament knots. If unrecorded, inventory numbers drift and the owner absorbs hidden losses.
-- **Solution**:
-  - In the Printers interface or Inventory, click **"⚠️ Log Scrap Loss"**:
-    - Select Printer & Loaded Spool.
-    - Enter grams wasted before failure (e.g. `65 grams`).
-    - Select Root Cause: `Bed Detachment`, `Nozzle Clog`, `Filament Tangle`, `Power Outage`, `Dimensional Error`.
-  - Automatically:
-    - Deducts 65g from the active spool.
-    - Logs an expense entry in the Financial Ledger under `Scrap Loss (Material Waste)`.
-    - Updates machine failure statistics to highlight troublesome filaments or print settings.
-
-### 4. ⚖️ Workshop Digital Scale Tare Subtraction
-- **Problem**: Physical spools always include the heavy plastic/cardboard spool core. Entering remaining weight requires mental math.
-- **Solution**:
-  - Select Spool Brand: **Numakers (210g)**, **eSun (230g)**, **Bambu (250g)**.
-  - Put the spool on your workshop digital kitchen scale and type the gross reading (e.g. `840 g`).
-  - App instantly computes: $\text{Net Usable Filament} = 840\text{g} - 210\text{g} = 630\text{g}$.
-  - Color bar turns orange when net filament drops below 150g, and red when below 50g.
+### Where:
+1. **$C_{\text{mat}}$ (Raw Filament Cost per Gram)**:
+   - PLA+ (Numakers): $\approx ₹0.90 / \text{g}$
+   - PETG-HS (High Speed): $\approx ₹1.10 / \text{g}$
+   - ABS Engineering: $\approx ₹1.20 / \text{g}$
+   - TPU+ Flexible: $\approx ₹1.60 / \text{g}$
+   - PLA Silk / Dual: $\approx ₹1.30 / \text{g}$
+   - PLA Matte: $\approx ₹1.10 / \text{g}$
+2. **$C_{\text{elec}}$ (Electricity Cost per Hour)**:
+   - Average 350W printer draw at Pune MSEDCL commercial tariff ($₹8.50 / \text{kWh}$):
+   - $0.35\text{ kW} \times ₹8.50 = ₹2.98 \approx ₹3.00 / \text{hr}$
+3. **$C_{\text{wear}}$ (Machine Wear & Depreciation Reserve)**:
+   - Amortizing a ₹55,000 printer over 3,000 operational hours + maintenance:
+   - $₹55,000 / 3,000\text{h} \approx ₹18.33 / \text{hr}$
+4. **$C_{\text{prep}}$ (Slicing, Machine Setup & Post-Processing Buffer)**:
+   - Flat ₹50 to ₹100 per production plate setup.
+5. **$M_{\text{margin}}$ (Owner Margin Multiplier)**:
+   - Standard Commercial: $2.5\times$ to $3.0\times$ (equivalent to 150%–200% markup).
+   - High-Speed / Overnight Emergency: $3.5\times$ to $4.0\times$.
+6. **$D_{\text{volume}}$ (Batch Volume Tier Discount Curve)**:
+   - $1\text{ to }4\text{ units}$: $1.00$ ($0\%$ discount)
+   - $5\text{ to }9\text{ units}$: $0.90$ ($10\%$ discount)
+   - $10\text{ to }24\text{ units}$: $0.85$ ($15\%$ discount)
+   - $25\text{ to }49\text{ units}$: $0.80$ ($20\%$ discount)
+   - $50+\text{ units}$: $0.75$ ($25\%$ volume production discount)
 
 ---
 
-## 📈 Owner Productivity Benchmarks
+## 🖨️ Hardware Fleet Scale-Up Roadmap
 
-| Manual Workflow Before | With Made N More Owner Tools | Time Saved |
-| :--- | :--- | :---: |
-| Retyping slicer grams into calculator | Drop `.gcode` file; auto-extracts in 1 sec | **90% faster** |
-| Typing quotes and payment terms on WhatsApp | 1-Click WhatsApp formatted quote copy | **3 mins saved per lead** |
-| Mental math subtracting spool tare weight | Select brand & enter scale gross reading | **100% accurate** |
-| Calculating monthly revenue vs filament cost | Automated P&L ledger with milestone tallies | **Instant visibility** |
-| Remembering when to lubricate printer rails | Automated running hours odometer alert | **Zero surprise breakdowns** |
+| Stage | Fleet Composition | Capacity | Primary Capability | Target Monthly Revenue |
+| :--- | :--- | :--- | :--- | :--- |
+| **Current (Stage 1)** | 1x Snapmaker U1 Dual, 1x Voron 2.4, 1x Bambu P1S, 1x Ender 3 | 4 Machines | Multicolor PLA/PETG/ABS, Rapid Prototypes | ₹50,000 – ₹1,20,000 |
+| **Stage 2 (Expansion)** | +2x Bambu Lab X1-Carbon AMS, +1x Voron 350mm | 7 Machines | High-temperature ABS/Nylon-CF, Carbon fiber robotics | ₹1,50,000 – ₹3,00,000 |
+| **Stage 3 (Pilot Factory)** | +1x Industrial Formlabs Form 4 SLA, +1x Conveyor Continuous Bed | 10 Machines | High-detail resin, continuous pilot runs (500+ pcs) | ₹4,00,000 – ₹7,50,000 |
+| **Stage 4 (Digital Hub)** | 15+ CoreXY Farm + In-House SLS Nylon Polymer | 15+ Machines | True production manufacturing replacing small injection molds | ₹10,00,000+ |
 
 ---
 
-*Authored for: The Business Owner, Made N More & 3D Printing Labs*  
-*Operating Hub: Pune, Maharashtra, India*
+## 🛡️ Technical Architecture & HomeLab Server Integrity
+
+- **Frontend Core**: Vanilla ES6+, CSS3 Glassmorphism tokens, reactive in-memory client store with optimistic UI updates.
+- **Backend API Server**: Node.js + Express 5 running on `0.0.0.0:4000`, persisting JSON ACID state to `src/data/persisted.json`.
+- **Physical Hardware Connectors**:
+  - Moonraker JSON-RPC & HTTP REST bridge with automatic server-side proxy fallback to bypass cross-origin browser sandbox restrictions.
+  - Subnet autodiscovery scanner for DHCP IP shifts.
+  - Blob stream downloader for cross-origin MP4 timelapse captures.
+- **Data Safety**:
+  - 1-Click JSON full database export & CSV backups.
+  - Docker containerization (`Dockerfile` + `docker-compose.yml`) with volume mount preservation.
+  - PM2 process daemon ecosystem (`ecosystem.config.cjs`) with auto-restart on memory spikes.
+
+---
+
+*Document Author: Business Architecture Team, Made N More & 3D Printing Labs*  
+*Base Operations: Pune Industrial Corridor, Maharashtra, India*
