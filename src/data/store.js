@@ -486,7 +486,21 @@ export function search(query) {
 
 /** Export and Import */
 export function exportData() {
-  return JSON.stringify(_cache, null, 2);
+  return JSON.stringify({
+    ..._cache,
+    exportType: 'full_archive',
+    version: '1.0',
+    exportDate: new Date().toISOString()
+  }, null, 2);
+}
+
+export function exportSettings() {
+  return JSON.stringify({
+    settings: _cache.settings,
+    exportType: 'settings_only',
+    version: '1.0',
+    exportDate: new Date().toISOString()
+  }, null, 2);
 }
 
 export function exportCSV(collection) {
@@ -531,6 +545,34 @@ export function exportCSV(collection) {
     return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
   }
 
+  if (collection === 'consumables') {
+    const headers = ['Name', 'Category', 'Specs', 'Stock', 'Unit', 'Min Stock', 'Cost Per Unit (INR)', 'Supplier'];
+    const rows = items.map(c => [
+      `"${(c.name || '').replace(/"/g, '""')}"`,
+      `"${c.category || ''}"`,
+      `"${(c.specs || '').replace(/"/g, '""')}"`,
+      c.stock || 0,
+      `"${c.unit || ''}"`,
+      c.minStock || 0,
+      c.costPerUnit || 0,
+      `"${(c.supplier || '').replace(/"/g, '""')}"`
+    ]);
+    return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  }
+
+  if (collection === 'accounts') {
+    const headers = ['Name', 'Type', 'Institution', 'Account Number', 'Opening Balance', 'Current Balance'];
+    const rows = items.map(a => [
+      `"${(a.name || '').replace(/"/g, '""')}"`,
+      `"${a.type || ''}"`,
+      `"${(a.institution || '').replace(/"/g, '""')}"`,
+      `"${a.accountNumber || ''}"`,
+      a.openingBalance || 0,
+      getAccountBalance(a.id).balance || 0
+    ]);
+    return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  }
+
   return '';
 }
 
@@ -544,12 +586,13 @@ export async function importData(jsonStr, replace = true) {
 
     if (resp.success) {
       await initStore();
-      return true;
+      _notify('all');
+      return { success: true, data: resp.data };
     }
-    return false;
+    return { success: false, error: resp.error || 'Server rejected import' };
   } catch (err) {
     console.error('Import failed:', err);
-    return false;
+    return { success: false, error: err.message };
   }
 }
 

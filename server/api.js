@@ -5,8 +5,12 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { spawn } from 'child_process';
+import { Readable } from 'stream';
+import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 
+const require = createRequire(import.meta.url);
+const archiver = require('archiver');
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -289,6 +293,12 @@ function getDefaultDatabase() {
       { id: 'c9', name: 'PTFE Super Lube Synthetic Grease with Syncolon', category: 'Maintenance & Spare Parts', specs: '85g Tube, Lead Screws & Linear Rods Lubricant', stock: 2, unit: 'tubes', minStock: 1, costPerUnit: 650, location: 'Printer Service Kit', supplier: 'Amazon Business' },
       { id: 'c10', name: 'Double-Sided Textured PEI Spring Steel Sheet (256x256)', category: 'Maintenance & Spare Parts', specs: 'Gold Powder-Coated Textured PEI for High Adhesion', stock: 2, unit: 'sheets', minStock: 1, costPerUnit: 1450, location: 'Plate Rack B', supplier: 'Bambu Lab India' }
     ],
+    accounts: [
+      { id: 'acc1', name: 'HDFC Business Current A/c', type: 'bank', institution: 'HDFC Bank', accountNumber: '...5821', openingBalance: 42500, isPrimary: true },
+      { id: 'acc2', name: 'Workshop UPI (QR / PhonePe)', type: 'upi', institution: 'PhonePe Merchant', accountNumber: 'upi@hdfc', openingBalance: 8400, isPrimary: false },
+      { id: 'acc3', name: 'Workshop Cash Drawer', type: 'cash', institution: 'Cash in Hand', accountNumber: 'Cash Box A', openingBalance: 3200, isPrimary: false },
+      { id: 'acc4', name: 'Machine Maintenance & Capex Sinking Fund', type: 'reserve', institution: 'Fixed Reserve', accountNumber: 'Reserve-01', openingBalance: 15000, isPrimary: false }
+    ],
     settings: {
       machineCost: 55000,
       electricityRate: 8.5,
@@ -372,31 +382,50 @@ app.post('/api/import', (req, res) => {
   try {
     let payload = req.body;
     if (payload.jsonStr) {
-      payload = JSON.parse(payload.jsonStr);
+      payload = typeof payload.jsonStr === 'string' ? JSON.parse(payload.jsonStr) : payload.jsonStr;
     }
     const replace = req.body.replace !== false;
 
     let current = loadData();
+    const cols = ['filaments', 'transactions', 'orders', 'printers', 'consumables', 'accounts'];
+
+    // Check if payload contains settings
+    const settingsPayload = payload.settings || (payload.businessName || payload.electricityRate ? payload : null);
+
     if (replace) {
-      current = {
-        ...getDefaultDatabase(),
-        ...payload,
-        _seeded: true
-      };
+      // Check if this payload has collections or is only settings
+      const hasCollections = cols.some(col => Array.isArray(payload[col]) && payload[col].length > 0);
+      if (!hasCollections && settingsPayload) {
+        // Pure settings import - do not wipe out inventory/orders/accounts!
+        current.settings = { ...(current.settings || {}), ...settingsPayload };
+      } else {
+        current = {
+          ...getDefaultDatabase(),
+          ...payload,
+          _seeded: true
+        };
+        if (settingsPayload) {
+          current.settings = { ...(current.settings || {}), ...settingsPayload };
+        }
+      }
     } else {
-      // Merge collections
-      ['filaments', 'transactions', 'orders', 'printers', 'consumables'].forEach(col => {
+      // Merge mode
+      cols.forEach(col => {
         if (Array.isArray(payload[col])) {
-          const existingIds = new Set((current[col] || []).map(i => i.id));
+          if (!Array.isArray(current[col])) current[col] = [];
+          const existingIds = new Set(current[col].map(i => String(i.id)));
           payload[col].forEach(item => {
-            if (!existingIds.has(item.id)) {
+            if (existingIds.has(String(item.id))) {
+              const idx = current[col].findIndex(i => String(i.id) === String(item.id));
+              if (idx !== -1) current[col][idx] = { ...current[col][idx], ...item };
+            } else {
               current[col].push(item);
             }
           });
         }
       });
-      if (payload.settings) {
-        current.settings = { ...current.settings, ...payload.settings };
+      if (settingsPayload) {
+        current.settings = { ...(current.settings || {}), ...settingsPayload };
       }
     }
 
@@ -492,8 +521,29 @@ app.put('/api/settings', (req, res) => {
   res.json(data.settings);
 });
 
+// Dedicated Settings Export / Import Endpoints
+app.get('/api/settings/export', (req, res) => {
+  const data = loadData();
+  res.json({
+    settings: data.settings || {},
+    exportDate: new Date().toISOString()
+  });
+});
+
+app.post('/api/settings/import', (req, res) => {
+  try {
+    const data = loadData();
+    const newSettings = req.body.settings || req.body;
+    data.settings = { ...(data.settings || {}), ...newSettings };
+    saveData(data);
+    res.json({ success: true, settings: data.settings });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 // ----- Generic Collection CRUD Endpoints -----
-const VALID_COLLECTIONS = ['filaments', 'transactions', 'orders', 'printers', 'consumables'];
+const VALID_COLLECTIONS = ['filaments', 'transactions', 'orders', 'printers', 'consumables', 'accounts'];
 
 app.get('/api/:collection', (req, res, next) => {
   if (!VALID_COLLECTIONS.includes(req.params.collection)) return next();
@@ -729,6 +779,78 @@ app.get('/api/printer/camera/snapshot', async (req, res) => {
     }
   }
   res.status(502).send('Camera offline');
+});
+
+// Stream single ZIP archive containing all timelapse recordings over LAN
+app.get('/api/printer/timelapse/zip', async (req, res) => {
+  const ip = req.query.ip || '192.168.0.144';
+  const port = req.query.port || 80;
+  const root = req.query.root || 'camera';
+  const printerName = (req.query.name || 'Snapmaker_U1').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const host = port == 80 ? ip : `${ip}:${port}`;
+
+  try {
+    let fileList = [];
+    if (req.query.files) {
+      try {
+        fileList = typeof req.query.files === 'string' ? JSON.parse(req.query.files) : req.query.files;
+      } catch {}
+    }
+
+    if (!fileList || fileList.length === 0) {
+      const listRes = await fetch(`http://${host}/server/files/list?root=${root}`, {
+        signal: AbortSignal.timeout(6000)
+      });
+      if (!listRes.ok) throw new Error(`HTTP ${listRes.status} from printer at ${host}`);
+      const listData = await listRes.json();
+      fileList = (listData.result || [])
+        .filter(f => f.path && (f.path.toLowerCase().endsWith('.mp4') || f.path.toLowerCase().endsWith('.jpg')))
+        .map(f => f.path);
+    }
+
+    if (fileList.length === 0) {
+      return res.status(404).json({ error: 'No media files found to package into ZIP' });
+    }
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const zipName = `timelapses_${printerName}_${dateStr}.zip`;
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
+    res.setHeader('Cache-Control', 'no-cache');
+
+    const archive = archiver('zip', {
+      zlib: { level: 0 }, // Store without re-compressing already compressed MP4s
+      forceLocalTime: true,
+    });
+
+    archive.on('error', (err) => {
+      console.error('[API Timelapse ZIP] Archive error:', err);
+      if (!res.headersSent) res.status(500).send({ error: err.message });
+    });
+
+    archive.pipe(res);
+
+    for (const filename of fileList) {
+      try {
+        const fileUrl = `http://${host}/server/files/${root}/${encodeURIComponent(filename)}`;
+        const fRes = await fetch(fileUrl, { signal: AbortSignal.timeout(120000) });
+        if (fRes.ok && fRes.body) {
+          const readable = Readable.fromWeb(fRes.body);
+          archive.append(readable, { name: path.basename(filename) });
+        }
+      } catch (fErr) {
+        console.warn(`[API Timelapse ZIP] Failed to append ${filename}:`, fErr.message);
+      }
+    }
+
+    await archive.finalize();
+  } catch (err) {
+    console.error('[API Timelapse ZIP] Error:', err);
+    if (!res.headersSent) {
+      res.status(502).json({ error: err.message });
+    }
+  }
 });
 
 // Auto-discover Moonraker / Snapmaker printer IP on local network

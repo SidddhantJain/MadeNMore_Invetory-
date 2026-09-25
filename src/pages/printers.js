@@ -8,6 +8,7 @@ import { formatCurrency, formatDate, escapeHtml } from '../utils/helpers.js';
 import { ICONS } from '../utils/icons.js';
 import { showModal, closeModal } from '../components/modal.js';
 import { showToast } from '../components/toast.js';
+import JSZip from 'jszip';
 import { PRINTER_SEED } from '../data/seed.js';
 import { openTareCalculatorModal } from '../utils/tareCalculator.js';
 import { openUniversalScrapLossModal } from '../utils/scrapLogger.js';
@@ -656,38 +657,13 @@ async function pollSinglePhysicalPrinter(printerId, container) {
   }
 }
 
-// ─── Direct Blob Downloader (Solves Chrome cross-origin UUID download issue) ───
+// ─── Direct Blob Downloader (Fast native stream without event loop throttling) ───
 async function downloadMediaBlob(url, filename, knownSizeBytes = 0, progressCallback = null) {
   try {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const headerLength = parseInt(response.headers.get('content-length'), 10);
-    const totalBytes = (headerLength && !isNaN(headerLength)) ? headerLength : knownSizeBytes;
-    let blob;
-
-    if (totalBytes > 0 && response.body && window.ReadableStream) {
-      let loaded = 0;
-      const reader = response.body.getReader();
-      const chunks = [];
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        loaded += value.length;
-        if (progressCallback && totalBytes > 0) {
-          const pct = Math.min(99, Math.round((loaded / totalBytes) * 100));
-          progressCallback(pct);
-        }
-      }
-      if (progressCallback) progressCallback(100);
-      const mimeType = filename.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg';
-      blob = new Blob(chunks, { type: mimeType });
-    } else {
-      blob = await response.blob();
-      if (progressCallback) progressCallback(100);
-    }
+    const blob = await response.blob();
+    if (progressCallback) progressCallback(100);
 
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -701,7 +677,6 @@ async function downloadMediaBlob(url, filename, knownSizeBytes = 0, progressCall
     return true;
   } catch (err) {
     console.error('Blob download failed, using direct download:', err);
-    // Direct link fallback without target="_blank"
     const a = document.createElement('a');
     a.style.display = 'none';
     a.href = url;
@@ -734,8 +709,8 @@ async function openCameraSnapshotModal(printerId, container) {
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <button class="btn btn-primary btn-sm" id="btn-download-all-videos" ${media.totalVideoCount === 0 ? 'disabled' : ''}>
-          ⬇️ Download All Timelapses (${media.totalVideoCount})
+        <button class="btn btn-primary btn-sm" id="btn-download-all-zip" ${media.totalVideoCount === 0 ? 'disabled' : ''}>
+          📦 Download All as Single ZIP (${media.totalVideoCount} videos)
         </button>
         <a href="http://${escapeHtml(printer.iotHost)}/" target="_blank" class="btn btn-ghost btn-sm" style="font-size:0.75rem;">
           🌐 Fluidd
@@ -944,32 +919,96 @@ async function openCameraSnapshotModal(printerId, container) {
       });
     });
 
-    // Bulk Downloader for All Timelapses with sequential progress
-    document.getElementById('btn-download-all-videos')?.addEventListener('click', async () => {
-      const btn = document.getElementById('btn-download-all-videos');
+    // Fast Bulk Downloader: Single ZIP Archive for All Timelapses
+    document.getElementById('btn-download-all-zip')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-download-all-zip');
       if (!media.videos || media.videos.length === 0) return;
 
       btn.disabled = true;
-      showToast(`Starting sequential download of ${media.videos.length} timelapses...`, 'info');
+      btn.innerHTML = `<span class="telemetry-pulse">📦</span> Packaging ZIP...`;
+      showToast(`Preparing single ZIP archive for ${media.videos.length} timelapse videos...`, 'info');
 
-      for (let i = 0; i < media.videos.length; i++) {
-        const v = media.videos[i];
-        btn.textContent = `⏳ (${i + 1}/${media.videos.length}): 0%`;
+      const host = printer.iotHost || '192.168.0.144';
+      const port = printer.iotPort || 80;
+      const pName = (printer.name || 'Snapmaker_U1').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const dateStr = new Date().toISOString().split('T')[0];
+      const zipFilename = `timelapses_${pName}_${dateStr}.zip`;
 
-        await downloadMediaBlob(v.url, v.filename, v.size || 0, (pct) => {
-          btn.textContent = `⏳ (${i + 1}/${media.videos.length}): ${pct}%`;
-        });
+      // 1. Try High-Speed Backend LAN Stream first (instant store mode, zero browser CPU load)
+      let backendSuccess = false;
+      try {
+        const streamUrl = `/api/printer/timelapse/zip?ip=${encodeURIComponent(host)}&port=${encodeURIComponent(port)}&root=camera&name=${encodeURIComponent(pName)}`;
+        const testRes = await fetch(streamUrl, { method: 'HEAD', signal: AbortSignal.timeout(4000) }).catch(() => null);
 
-        // Brief delay between files to avoid browser rate limit
-        await new Promise(r => setTimeout(r, 600));
+        if (testRes && (testRes.ok || testRes.status === 200)) {
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = streamUrl;
+          a.download = zipFilename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          backendSuccess = true;
+          showToast(`⚡ High-speed LAN ZIP download started for ${media.videos.length} videos!`, 'success');
+        }
+      } catch (err) {
+        console.warn('Backend ZIP stream check skipped, trying client JSZip:', err);
       }
 
-      btn.textContent = '✓ All Downloaded';
-      showToast(`🎉 Downloaded all ${media.videos.length} timelapses with exact filenames!`, 'success');
+      // 2. Client-side JSZip fallback with parallel batching
+      if (!backendSuccess) {
+        try {
+          const zip = new JSZip();
+          const total = media.videos.length;
+          let completed = 0;
 
+          // Parallel batches of 3 to maximize LAN throughput without overloading printer
+          const BATCH_SIZE = 3;
+          for (let i = 0; i < total; i += BATCH_SIZE) {
+            const batch = media.videos.slice(i, i + BATCH_SIZE);
+            btn.innerHTML = `📦 Zipping (${completed}/${total})...`;
+
+            await Promise.all(batch.map(async (v) => {
+              try {
+                const res = await fetch(v.url);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const blob = await res.blob();
+                zip.file(v.filename, blob);
+                completed++;
+                btn.innerHTML = `📦 Zipping (${completed}/${total})...`;
+              } catch (fErr) {
+                console.warn(`Failed to add ${v.filename} to zip:`, fErr.message);
+              }
+            }));
+          }
+
+          btn.innerHTML = `📦 Finalizing ZIP...`;
+          // Store mode (Level 0) is instantaneous for already compressed MP4s
+          const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' }, (meta) => {
+            btn.innerHTML = `📦 Compressing ${Math.round(meta.percent)}%...`;
+          });
+
+          const blobUrl = URL.createObjectURL(zipBlob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = blobUrl;
+          a.download = zipFilename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+
+          showToast(`🎉 Downloaded single ZIP archive with ${completed} timelapses!`, 'success');
+        } catch (zipErr) {
+          console.error('Client zip generation failed:', zipErr);
+          showToast('Failed to create ZIP archive: ' + zipErr.message, 'error');
+        }
+      }
+
+      btn.innerHTML = `✓ ZIP Downloaded`;
       setTimeout(() => {
         btn.disabled = false;
-        btn.textContent = `⬇️ Download All Timelapses (${media.totalVideoCount})`;
+        btn.innerHTML = `📦 Download All as Single ZIP (${media.totalVideoCount} videos)`;
       }, 5000);
     });
 
