@@ -832,6 +832,11 @@ function autoUpdatePrinterIpInDb(newIp) {
       saveData(db);
       console.log(`[API] Auto-saved Snapmaker U1 IP in persisted.json to ${newIp}`);
     }
+  } catch (err) {
+    console.warn('[API] Could not auto-update printer IP in DB:', err.message);
+  }
+}
+
 // ─── UNIVERSAL MULTI-PRINTER PROTOCOL PROXIES ──────────────────
 
 // 1. OctoPrint Proxy Endpoints (Marlin / RepRap / Ender 3 / Prusa MK3)
