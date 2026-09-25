@@ -493,13 +493,17 @@ app.put('/api/settings', (req, res) => {
 });
 
 // ----- Generic Collection CRUD Endpoints -----
-app.get('/api/:collection', (req, res) => {
+const VALID_COLLECTIONS = ['filaments', 'transactions', 'orders', 'printers', 'consumables'];
+
+app.get('/api/:collection', (req, res, next) => {
+  if (!VALID_COLLECTIONS.includes(req.params.collection)) return next();
   const data = loadData();
   const collection = getCollection(data, req.params.collection);
   res.json(collection);
 });
 
-app.get('/api/:collection/:id', (req, res) => {
+app.get('/api/:collection/:id', (req, res, next) => {
+  if (!VALID_COLLECTIONS.includes(req.params.collection)) return next();
   const data = loadData();
   const collection = getCollection(data, req.params.collection);
   const item = collection.find(i => String(i.id) === String(req.params.id));
