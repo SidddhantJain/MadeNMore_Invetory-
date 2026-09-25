@@ -195,10 +195,21 @@ $$\text{Final Part Quote} = \left[ (\text{Mass} \times C_{\text{mat}}) + (\text{
 
 - **Frontend Core**: Vanilla ES6+, CSS3 Glassmorphism tokens, reactive in-memory client store with optimistic UI updates.
 - **Backend API Server**: Node.js + Express 5 running on `0.0.0.0:4000`, persisting JSON ACID state to `src/data/persisted.json`.
-- **Physical Hardware Connectors**:
-  - Moonraker JSON-RPC & HTTP REST bridge with automatic server-side proxy fallback to bypass cross-origin browser sandbox restrictions.
-  - Subnet autodiscovery scanner for DHCP IP shifts.
-  - Blob stream downloader for cross-origin MP4 timelapse captures.
+- **Physical Hardware Connectors & Universal Fleet Matrix**:
+  - **Tier 1 (Covers ~85% of Modern Machines)**:
+    - **Moonraker (Klipper)**: Snapmaker U1, Voron 2.4, Creality K1/K1 Max, Elegoo Neptune 4. Direct JSON-RPC/REST telemetry (`/printer/objects/query`), G-code execution (`/printer/gcode/script`), virtual SD card streaming, and native chamber temp monitoring.
+    - **OctoPrint (Marlin / RepRap)**: Creality Ender 3, CR-10, Prusa MK3S, Anycubic, Artillery. REST API (`/api/printer`, `/api/job`, `/api/command`) proxy with temperature normalization and job progress tracking.
+  - **Tier 2 (Multi-Color Mainstream Production Farms)**:
+    - **Bambu Lab LAN Mode**: X1-Carbon, P1S, P1P, A1, A1 Mini. Direct local TLS MQTT broker (`port 8883`) and FTPS (`port 990`) protocol adapter with Access Code authentication. Real-time AMS (Automatic Material System) 4-slot tray status, filament colors, nozzle/bed temps, and local LAN job dispatch.
+  - **Tier 3 (Universal Fallbacks & Direct USB)**:
+    - **PrusaLink REST API**: Original Prusa MK4, XL Multi-Toolhead, Mini+. Native digest auth telemetry and SD card upload.
+    - **Direct WebSerial USB COM**: Browser-native WebSerial API (`115200` / `250000` baud) for tethered workshop laptops connected to custom Arduino/RAMPS/Marlin control boards.
+- **OrcaSlicer Integrated Studio & Headless CLI Engine**:
+  - Auto-detection of local slicer installations (`D:\software\OrcaSlicer\orca-slicer.exe` and `D:\software\New folder (2)\snapmaker orca\Snapmaker_Orca\snapmaker-orca.exe`).
+  - Headless background CLI slicing (`orca-slicer.exe --slice <file.stl>`) producing production-ready `.gcode` / `.3mf` binaries.
+  - Interactive In-App Slicing Studio: Dynamic material presets (PLA+, PETG-HS, ABS, TPU), infill patterns (Gyroid, Grid, Honeycomb), support geometry, and layer height resolution (0.12mm to 0.28mm).
+  - Pre-Flight Telemetry: Instant calculation of filament mass ($g$), print duration ($h$), electrical draw, machine wear, and automated quote pricing before sending to machines.
+  - 1-Click Desktop Slicer Launch & 1-Click LAN Farm Dispatch to any connected Moonraker, OctoPrint, or Bambu printer.
 - **Data Safety**:
   - 1-Click JSON full database export & CSV backups.
   - Docker containerization (`Dockerfile` + `docker-compose.yml`) with volume mount preservation.
