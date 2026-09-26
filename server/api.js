@@ -8,6 +8,7 @@ import { spawn } from 'child_process';
 import { Readable } from 'stream';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
+import { syncEngineInstance } from './syncEngine.js';
 
 const require = createRequire(import.meta.url);
 const archiver = require('archiver');
@@ -299,6 +300,115 @@ function getDefaultDatabase() {
       { id: 'acc3', name: 'Workshop Cash Drawer', type: 'cash', institution: 'Cash in Hand', accountNumber: 'Cash Box A', openingBalance: 3200, isPrimary: false },
       { id: 'acc4', name: 'Machine Maintenance & Capex Sinking Fund', type: 'reserve', institution: 'Fixed Reserve', accountNumber: 'Reserve-01', openingBalance: 15000, isPrimary: false }
     ],
+    leads: [
+      {
+        id: 'lead_1',
+        cloudQuoteId: 'q_cloud_01',
+        source: 'website_quote',
+        clientName: 'Aerovision Systems (Pvt Ltd)',
+        clientEmail: 'engineering@aerovision.io',
+        clientPhone: '+91 98221 55667',
+        material: 'PETG-HS',
+        color: 'Midnight Grey',
+        quantity: 8,
+        deadline: '2026-10-05',
+        notes: 'Custom high-speed drone gimbal mounts. Need 40% gyroid infill and brass heat-set insert compatibility.',
+        fileCadUrl: 'https://madenmore.com/uploads/gimbal_mount_v2.stl',
+        cadFiles: [{ name: 'gimbal_mount_v2.stl', url: 'https://madenmore.com/uploads/gimbal_mount_v2.stl', size: '2.4 MB' }],
+        stage: 'interested',
+        costing: {
+          materialCost: 320,
+          electricityCost: 110,
+          machineWear: 180,
+          packaging: 60,
+          shipping: 150,
+          cadFee: 500,
+          totalCost: 1320,
+          sellingPrice: 2800,
+          profit: 1480,
+          profitMarginPct: 52.86
+        },
+        quotedPrice: 2800,
+        createdAt: '2026-09-24T14:30:00.000Z',
+        updatedAt: '2026-09-25T10:15:00.000Z',
+        syncedAt: '2026-09-25T10:15:00.000Z'
+      },
+      {
+        id: 'lead_2',
+        cloudQuoteId: 'q_cloud_02',
+        source: 'website_quote',
+        clientName: 'Dr. Ananya Joshi (OrthoTech)',
+        clientEmail: 'ananya.j@orthoimplants.com',
+        clientPhone: '+91 94225 88990',
+        material: 'ABS',
+        color: 'Ivory Skin',
+        quantity: 3,
+        deadline: '2026-09-30',
+        notes: 'Pre-operative bone drill guide prototypes for surgical simulation. Requires high dimensional accuracy.',
+        fileCadUrl: 'https://madenmore.com/uploads/surgical_guide_rh.stl',
+        cadFiles: [{ name: 'surgical_guide_rh.stl', url: 'https://madenmore.com/uploads/surgical_guide_rh.stl', size: '5.1 MB' }],
+        stage: 'quoted',
+        costing: {
+          materialCost: 280,
+          electricityCost: 95,
+          machineWear: 150,
+          packaging: 80,
+          shipping: 180,
+          cadFee: 800,
+          totalCost: 1585,
+          sellingPrice: 3450,
+          profit: 1865,
+          profitMarginPct: 54.06
+        },
+        quotedPrice: 3450,
+        createdAt: '2026-09-25T09:00:00.000Z',
+        updatedAt: '2026-09-25T16:20:00.000Z',
+        syncedAt: '2026-09-25T16:20:00.000Z'
+      },
+      {
+        id: 'lead_3',
+        cloudContactId: 'msg_cloud_03',
+        source: 'website_contact',
+        clientName: 'Kavita Sundaram',
+        clientEmail: 'kavita.sundaram@gmail.com',
+        clientPhone: '+91 91580 22334',
+        material: 'PLA Silk',
+        color: 'Antique Gold',
+        quantity: 25,
+        deadline: '2026-10-15',
+        notes: 'Corporate gift customized lithophane lamp bases with embossed company logos for festive Diwali hampers.',
+        fileCadUrl: '',
+        cadFiles: [],
+        stage: 'new',
+        costing: {
+          materialCost: 1250,
+          electricityCost: 450,
+          machineWear: 600,
+          packaging: 250,
+          shipping: 350,
+          cadFee: 400,
+          totalCost: 3300,
+          sellingPrice: 6500,
+          profit: 3200,
+          profitMarginPct: 49.23
+        },
+        quotedPrice: 6500,
+        createdAt: '2026-09-26T11:00:00.000Z',
+        updatedAt: '2026-09-26T11:00:00.000Z',
+        syncedAt: '2026-09-26T11:00:00.000Z'
+      }
+    ],
+    messages: [
+      {
+        id: 'msg_1',
+        sender: 'Kavita Sundaram',
+        email: 'kavita.sundaram@gmail.com',
+        phone: '+91 91580 22334',
+        subject: 'Bulk Corporate Diwali Hampers Inquiry',
+        message: 'Looking for 25 units of customized gold silk 3D printed lamps with LED bases.',
+        createdAt: '2026-09-26T11:00:00.000Z'
+      }
+    ],
     settings: {
       machineCost: 55000,
       electricityRate: 8.5,
@@ -306,6 +416,9 @@ function getDefaultDatabase() {
       defaultMarkup: 150,
       businessName: 'Made N More',
       currency: '₹',
+      cloudApiUrl: 'http://localhost:3000',
+      cloudApiKey: 'mm_live_sync_secret_2026_key',
+      syncIntervalSec: 20,
       materialCosts: {
         'PLA+': 900,
         'PETG-HS': 1100,
@@ -340,6 +453,15 @@ function loadData() {
       const merged = { ...defaultData, ...parsed };
       fs.writeFileSync(DATA_FILE, JSON.stringify(merged, null, 2), 'utf-8');
       return merged;
+    }
+    // Ensure new collections exist in older databases
+    if (!parsed.leads || parsed.leads.length === 0) {
+      parsed.leads = getDefaultDatabase().leads;
+      saveData(parsed);
+    }
+    if (!parsed.messages || parsed.messages.length === 0) {
+      parsed.messages = getDefaultDatabase().messages;
+      saveData(parsed);
     }
     return parsed;
   } catch (err) {
@@ -543,7 +665,59 @@ app.post('/api/settings/import', (req, res) => {
 });
 
 // ----- Generic Collection CRUD Endpoints -----
-const VALID_COLLECTIONS = ['filaments', 'transactions', 'orders', 'printers', 'consumables', 'accounts'];
+const VALID_COLLECTIONS = ['filaments', 'transactions', 'orders', 'printers', 'consumables', 'accounts', 'leads', 'messages'];
+
+// ----- Cloud Website Synchronization Endpoints -----
+app.get('/api/sync/status', (req, res) => {
+  res.json(syncEngineInstance.getStatus());
+});
+
+app.post('/api/sync/trigger', async (req, res) => {
+  try {
+    const result = await syncEngineInstance.syncCycle();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/sync/test', async (req, res) => {
+  try {
+    const result = await syncEngineInstance.testConnection(req.body.cloudApiUrl, req.body.cloudApiKey);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/sync/config', (req, res) => {
+  try {
+    const status = syncEngineInstance.updateConfig(req.body);
+    if (req.body.persistToSettings) {
+      const data = loadData();
+      data.settings = data.settings || {};
+      if (req.body.cloudApiUrl) data.settings.cloudApiUrl = req.body.cloudApiUrl;
+      if (req.body.cloudApiKey) data.settings.cloudApiKey = req.body.cloudApiKey;
+      if (req.body.syncIntervalSec) data.settings.syncIntervalSec = req.body.syncIntervalSec;
+      saveData(data);
+    }
+    res.json({ success: true, status });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/sync/push', async (req, res) => {
+  try {
+    if (req.body.type && req.body.data) {
+      syncEngineInstance.queuePushUpdate(req.body.type, req.body.data);
+    }
+    const result = await syncEngineInstance.pushToCloud(req.body.acknowledgedIds);
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 app.get('/api/:collection', (req, res, next) => {
   if (!VALID_COLLECTIONS.includes(req.params.collection)) return next();
@@ -571,6 +745,14 @@ app.post('/api/:collection', (req, res) => {
   };
   collection.push(newItem);
   saveData(data);
+
+  // Auto queue update to cloud sync if lead or order
+  if (req.params.collection === 'leads') {
+    syncEngineInstance.queuePushUpdate('lead_created', newItem);
+  } else if (req.params.collection === 'orders') {
+    syncEngineInstance.queuePushUpdate('order_created', newItem);
+  }
+
   res.status(201).json(newItem);
 });
 
@@ -586,6 +768,14 @@ app.put('/api/:collection/:id', (req, res) => {
     updatedAt: new Date().toISOString()
   };
   saveData(data);
+
+  // Auto queue update to cloud sync if lead or order
+  if (req.params.collection === 'leads') {
+    syncEngineInstance.queuePushUpdate('lead_updated', collection[idx]);
+  } else if (req.params.collection === 'orders') {
+    syncEngineInstance.queuePushUpdate('order_updated', collection[idx]);
+  }
+
   res.json(collection[idx]);
 });
 
@@ -596,6 +786,11 @@ app.delete('/api/:collection/:id', (req, res) => {
   if (idx === -1) return res.status(404).json({ error: 'Not found' });
   const removed = collection.splice(idx, 1)[0];
   saveData(data);
+
+  if (req.params.collection === 'leads') {
+    syncEngineInstance.queuePushUpdate('lead_deleted', { id: req.params.id });
+  }
+
   res.json(removed);
 });
 
@@ -1218,4 +1413,9 @@ if (fs.existsSync(distPath)) {
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Made N More API Server running on http://0.0.0.0:${PORT} (persisting to ${DATA_FILE})`);
+  
+  // Wire and start the bi-directional Cloud Sync Daemon
+  syncEngineInstance.loadDataFn = loadData;
+  syncEngineInstance.saveDataFn = saveData;
+  syncEngineInstance.start();
 });

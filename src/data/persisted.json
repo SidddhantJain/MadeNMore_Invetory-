@@ -906,5 +906,126 @@
       "PLA Matt": 1100
     }
   },
-  "_seeded": true
+  "_seeded": true,
+  "leads": [
+    {
+      "id": "lead_1",
+      "cloudQuoteId": "q_cloud_01",
+      "source": "website_quote",
+      "clientName": "Aerovision Systems (Pvt Ltd)",
+      "clientEmail": "engineering@aerovision.io",
+      "clientPhone": "+91 98221 55667",
+      "material": "PETG-HS",
+      "color": "Midnight Grey",
+      "quantity": 8,
+      "deadline": "2026-10-05",
+      "notes": "Custom high-speed drone gimbal mounts. Need 40% gyroid infill and brass heat-set insert compatibility.",
+      "fileCadUrl": "https://madenmore.com/uploads/gimbal_mount_v2.stl",
+      "cadFiles": [
+        {
+          "name": "gimbal_mount_v2.stl",
+          "url": "https://madenmore.com/uploads/gimbal_mount_v2.stl",
+          "size": "2.4 MB"
+        }
+      ],
+      "stage": "interested",
+      "costing": {
+        "materialCost": 320,
+        "electricityCost": 110,
+        "machineWear": 180,
+        "packaging": 60,
+        "shipping": 150,
+        "cadFee": 500,
+        "totalCost": 1320,
+        "sellingPrice": 2800,
+        "profit": 1480,
+        "profitMarginPct": 52.86
+      },
+      "quotedPrice": 2800,
+      "createdAt": "2026-09-24T14:30:00.000Z",
+      "updatedAt": "2026-09-25T10:15:00.000Z",
+      "syncedAt": "2026-09-25T10:15:00.000Z"
+    },
+    {
+      "id": "lead_2",
+      "cloudQuoteId": "q_cloud_02",
+      "source": "website_quote",
+      "clientName": "Dr. Ananya Joshi (OrthoTech)",
+      "clientEmail": "ananya.j@orthoimplants.com",
+      "clientPhone": "+91 94225 88990",
+      "material": "ABS",
+      "color": "Ivory Skin",
+      "quantity": 3,
+      "deadline": "2026-09-30",
+      "notes": "Pre-operative bone drill guide prototypes for surgical simulation. Requires high dimensional accuracy.",
+      "fileCadUrl": "https://madenmore.com/uploads/surgical_guide_rh.stl",
+      "cadFiles": [
+        {
+          "name": "surgical_guide_rh.stl",
+          "url": "https://madenmore.com/uploads/surgical_guide_rh.stl",
+          "size": "5.1 MB"
+        }
+      ],
+      "stage": "quoted",
+      "costing": {
+        "materialCost": 280,
+        "electricityCost": 95,
+        "machineWear": 150,
+        "packaging": 80,
+        "shipping": 180,
+        "cadFee": 800,
+        "totalCost": 1585,
+        "sellingPrice": 3450,
+        "profit": 1865,
+        "profitMarginPct": 54.06
+      },
+      "quotedPrice": 3450,
+      "createdAt": "2026-09-25T09:00:00.000Z",
+      "updatedAt": "2026-09-25T16:20:00.000Z",
+      "syncedAt": "2026-09-25T16:20:00.000Z"
+    },
+    {
+      "id": "lead_3",
+      "cloudContactId": "msg_cloud_03",
+      "source": "website_contact",
+      "clientName": "Kavita Sundaram",
+      "clientEmail": "kavita.sundaram@gmail.com",
+      "clientPhone": "+91 91580 22334",
+      "material": "PLA Silk",
+      "color": "Antique Gold",
+      "quantity": 25,
+      "deadline": "2026-10-15",
+      "notes": "Corporate gift customized lithophane lamp bases with embossed company logos for festive Diwali hampers.",
+      "fileCadUrl": "",
+      "cadFiles": [],
+      "stage": "new",
+      "costing": {
+        "materialCost": 1250,
+        "electricityCost": 450,
+        "machineWear": 600,
+        "packaging": 250,
+        "shipping": 350,
+        "cadFee": 400,
+        "totalCost": 3300,
+        "sellingPrice": 6500,
+        "profit": 3200,
+        "profitMarginPct": 49.23
+      },
+      "quotedPrice": 6500,
+      "createdAt": "2026-09-26T11:00:00.000Z",
+      "updatedAt": "2026-09-26T11:00:00.000Z",
+      "syncedAt": "2026-09-26T11:00:00.000Z"
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg_1",
+      "sender": "Kavita Sundaram",
+      "email": "kavita.sundaram@gmail.com",
+      "phone": "+91 91580 22334",
+      "subject": "Bulk Corporate Diwali Hampers Inquiry",
+      "message": "Looking for 25 units of customized gold silk 3D printed lamps with LED bases.",
+      "createdAt": "2026-09-26T11:00:00.000Z"
+    }
+  ]
 }

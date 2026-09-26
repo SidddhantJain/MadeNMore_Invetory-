@@ -61,5 +61,15 @@ export const ICONS = {
   account: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M3 10h18"/><path d="M5 6l7-3 7 3"/><path d="M4 10v11"/><path d="M20 10v11"/><path d="M8 14v3"/><path d="M12 14v3"/><path d="M16 14v3"/></svg>`,
 
   terminal: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`,
+
+  crm: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+
+  sync: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/><path d="M2.5 22v-6h6M2.66 8.43a10 10 0 0 1 .57 8.38l-5.67 5.67"/></svg>`,
+
+  cloud: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>`,
+
+  cad: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
+
+  whatsapp: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.04 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.16 12.04 20.16C10.56 20.16 9.11 19.76 7.85 19.01L7.55 18.83L4.43 19.65L5.26 16.61L5.07 16.3C4.24 14.98 3.8 13.47 3.8 11.91C3.8 7.37 7.5 3.67 12.04 3.67M9.04 7.22C8.84 7.22 8.52 7.3 8.25 7.59C7.98 7.89 7.22 8.6 7.22 10.05C7.22 11.5 8.28 12.89 8.42 13.08C8.56 13.28 10.49 16.25 13.44 17.53C14.15 17.84 14.7 18.02 15.13 18.16C15.84 18.39 16.49 18.35 17 18.28C17.58 18.2 18.77 17.56 19.02 16.86C19.26 16.16 19.26 15.56 19.19 15.44C19.12 15.31 18.93 15.24 18.63 15.09C18.33 14.94 16.86 14.22 16.58 14.12C16.3 14.02 16.11 13.97 15.91 14.27C15.71 14.56 15.14 15.24 14.97 15.44C14.79 15.63 14.62 15.66 14.33 15.51C14.03 15.36 13.08 15.05 11.95 14.04C11.07 13.26 10.48 12.29 10.3 12C10.13 11.71 10.28 11.55 10.43 11.41C10.56 11.28 10.73 11.06 10.87 10.89C11.02 10.72 11.07 10.59 11.17 10.39C11.27 10.2 11.22 10.03 11.14 9.88C11.07 9.74 10.48 8.28 10.23 7.69C10 7.12 9.76 7.2 9.57 7.19C9.4 7.19 9.2 7.22 9.04 7.22Z"/></svg>`,
 };
 

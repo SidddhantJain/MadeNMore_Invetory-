@@ -9,6 +9,7 @@ import { seedDatabase, MATERIAL_TYPES } from './data/seed.js';
 import { renderDashboard } from './pages/dashboard.js';
 import { renderInventory } from './pages/inventory.js';
 import { renderOrders } from './pages/orders.js';
+import { renderLeads } from './pages/leads.js';
 import { renderPrinters } from './pages/printers.js';
 import { renderTransactions } from './pages/transactions.js';
 import { renderAccounts } from './pages/accounts.js';
@@ -25,6 +26,8 @@ import { fetchPrinterTelemetry } from './services/moonrakerService.js';
 const ROUTES = [
   { hash: '#/',              label: 'Dashboard',    icon: 'dashboard',    render: renderDashboard,    section: 'main' },
   { hash: '#/inventory',     label: 'Inventory',    icon: 'inventory',    render: renderInventory,    section: 'main' },
+  { hash: '#/crm',          label: 'Leads & CRM',  icon: 'crm',          render: renderLeads,        section: 'main', badge: 'leads' },
+  { hash: '#/leads',        label: 'Leads & CRM',  icon: 'crm',          render: renderLeads,        section: 'hidden' },
   { hash: '#/orders',        label: 'Orders',       icon: 'order',        render: renderOrders,       section: 'main' },
   { hash: '#/printers',      label: 'Printers',     icon: 'printer',      render: renderPrinters,     section: 'main' },
   { hash: '#/transactions',  label: 'Transactions', icon: 'transactions', render: renderTransactions, section: 'main' },
@@ -325,6 +328,8 @@ function renderSidebar() {
   if (!sidebar) return;
 
   const currentHash = window.location.hash || '#/';
+  const leads = getAll('leads') || [];
+  const newLeadsCount = leads.filter(l => (l.stage || 'new') === 'new').length;
 
   const mainRoutes = ROUTES.filter(r => r.section === 'main');
   const toolRoutes = ROUTES.filter(r => r.section === 'tools');
@@ -342,9 +347,14 @@ function renderSidebar() {
     <nav class="sidebar-nav">
       <div class="sidebar-section-label">Main</div>
       ${mainRoutes.map(r => `
-        <div class="nav-item ${currentHash === r.hash ? 'active' : ''}" data-route="${r.hash}">
+        <div class="nav-item ${currentHash === r.hash || (r.hash === '#/crm' && currentHash === '#/leads') ? 'active' : ''}" data-route="${r.hash}">
           <span class="nav-icon">${ICONS[r.icon] || ''}</span>
-          ${r.label}
+          <span style="flex:1;">${r.label}</span>
+          ${(r.badge === 'leads' && newLeadsCount > 0) ? `
+            <span class="badge" style="background:#38bdf8;color:#0b0d17;font-weight:800;font-size:0.7rem;padding:2px 7px;border-radius:10px;margin-left:auto;">
+              ${newLeadsCount}
+            </span>
+          ` : ''}
         </div>
       `).join('')}
 
@@ -352,7 +362,7 @@ function renderSidebar() {
       ${toolRoutes.map(r => `
         <div class="nav-item ${currentHash === r.hash ? 'active' : ''}" data-route="${r.hash}">
           <span class="nav-icon">${ICONS[r.icon] || ''}</span>
-          ${r.label}
+          <span>${r.label}</span>
         </div>
       `).join('')}
 
@@ -360,7 +370,7 @@ function renderSidebar() {
       ${systemRoutes.map(r => `
         <div class="nav-item ${currentHash === r.hash ? 'active' : ''}" data-route="${r.hash}">
           <span class="nav-icon">${ICONS[r.icon] || ''}</span>
-          ${r.label}
+          <span>${r.label}</span>
         </div>
       `).join('')}
     </nav>

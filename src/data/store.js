@@ -18,6 +18,8 @@ let _cache = {
   printers: [],
   consumables: [],
   accounts: [],
+  leads: [],
+  messages: [],
   settings: {
     machineCost: 55000,
     electricityRate: 8.5,
@@ -25,6 +27,9 @@ let _cache = {
     defaultMarkup: 150,
     businessName: 'Made N More',
     currency: '₹',
+    cloudApiUrl: 'http://localhost:3000',
+    cloudApiKey: 'mm_live_sync_secret_2026_key',
+    syncIntervalSec: 20,
     materialCosts: {
       'PLA+': 900,
       'PETG-HS': 1100,
@@ -97,6 +102,8 @@ export async function initStore() {
         printers: allData.printers || [],
         consumables: allData.consumables || [],
         accounts: allData.accounts || [],
+        leads: allData.leads || [],
+        messages: allData.messages || [],
         settings: allData.settings || _cache.settings,
         _seeded: allData._seeded !== undefined ? allData._seeded : true
       };
@@ -119,6 +126,8 @@ export async function initStore() {
             printers: fresh.printers || [],
             consumables: fresh.consumables || [],
             accounts: fresh.accounts || [],
+            leads: fresh.leads || [],
+            messages: fresh.messages || [],
             settings: fresh.settings || _cache.settings,
             _seeded: fresh._seeded !== undefined ? fresh._seeded : true
           };
@@ -603,6 +612,8 @@ export async function clearAll() {
     orders: [],
     printers: [],
     consumables: [],
+    leads: [],
+    messages: [],
     settings: {
       machineCost: 0,
       electricityRate: 8,
@@ -621,3 +632,197 @@ export async function clearAll() {
     console.warn('Reset local only (API unreachable):', err.message);
   }
 }
+
+// ─── Cloud Website Synchronization Engine APIs ─────────────
+
+/** Get status of background cloud sync engine */
+export async function getSyncStatus() {
+  try {
+    return await fetchJSON(`${BASE_URL}/sync/status`);
+  } catch (err) {
+    return {
+      isRunning: false,
+      isSyncing: false,
+      status: 'disconnected',
+      lastError: err.message,
+      stats: { quotesPulled: 0, ordersPulled: 0, contactsPulled: 0, updatesPushed: 0 }
+    };
+  }
+}
+
+/** Manually trigger an immediate pull & push synchronization cycle */
+export async function triggerCloudSync() {
+  try {
+    const res = await fetchJSON(`${BASE_URL}/sync/trigger`, { method: 'POST' });
+    // Re-hydrate local store cache immediately with fresh pulled leads & orders
+    await initStore();
+    _notify('all');
+    return res;
+  } catch (err) {
+    console.error('Trigger sync error:', err);
+    throw err;
+  }
+}
+
+/** Test connectivity to Cloud Website API Gateway with custom endpoint and API key */
+export async function testCloudConnection(cloudApiUrl, cloudApiKey) {
+  try {
+    return await fetchJSON(`${BASE_URL}/sync/test`, {
+      method: 'POST',
+      body: JSON.stringify({ cloudApiUrl, cloudApiKey })
+    });
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/** Update Cloud Sync configuration (URL, key, polling interval) */
+export async function updateSyncConfig(config, persistToSettings = true) {
+  try {
+    const res = await fetchJSON(`${BASE_URL}/sync/config`, {
+      method: 'POST',
+      body: JSON.stringify({ ...config, persistToSettings })
+    });
+    if (persistToSettings && _cache.settings) {
+      if (config.cloudApiUrl) _cache.settings.cloudApiUrl = config.cloudApiUrl;
+      if (config.cloudApiKey) _cache.settings.cloudApiKey = config.cloudApiKey;
+      if (config.syncIntervalSec) _cache.settings.syncIntervalSec = config.syncIntervalSec;
+      _notify('settings');
+    }
+    return res;
+  } catch (err) {
+    console.error('Update sync config error:', err);
+    throw err;
+  }
+}
+
+// ─── Job Costing Matrix & Profit Calculation (ERP) ──────────
+
+/**
+ * Standard ERP Job Costing Engine for 3D Printing
+ * Inputs: material, weightGrams, printHours, packaging, shipping, cadFee, sellingPrice/markupPct
+ * Formula: Margin % = ((Selling Price - Total Cost) / Selling Price) * 100
+ */
+export function calculateJobCosting(params = {}) {
+  const settings = getSettings();
+  const material = params.material || 'PLA+';
+  const weightGrams = Math.max(0, parseFloat(params.weightGrams || params.weight || 0));
+  const printHours = Math.max(0, parseFloat(params.printHours || params.timeHours || params.hours || 0));
+  
+  const costPerKg = (settings.materialCosts && settings.materialCosts[material]) || 900;
+  const materialCost = (weightGrams / 1000) * costPerKg;
+  
+  const powerWatts = parseFloat(params.powerWatts || settings.printerPower || 350);
+  const elecRate = parseFloat(params.electricityRate || settings.electricityRate || 8.5);
+  const electricityCost = printHours * (powerWatts / 1000) * elecRate;
+  
+  const wearRatePerHour = parseFloat(params.hourlyWearRate || 25); // ₹25/hr machine wear & maintenance sinking fund
+  const machineWear = printHours * wearRatePerHour;
+  
+  const packaging = Math.max(0, parseFloat(params.packaging || 0));
+  const shipping = Math.max(0, parseFloat(params.shipping || 0));
+  const cadFee = Math.max(0, parseFloat(params.cadFee || params.designFee || 0));
+  
+  const totalCost = materialCost + electricityCost + machineWear + packaging + shipping + cadFee;
+  
+  const markupPct = params.markup !== undefined && params.markup !== null && params.markup !== ''
+    ? parseFloat(params.markup)
+    : (settings.defaultMarkup || 150);
+    
+  const suggestedPrice = Math.round(totalCost * (1 + markupPct / 100));
+  
+  let sellingPrice = params.sellingPrice !== undefined && params.sellingPrice !== null && params.sellingPrice !== ''
+    ? parseFloat(params.sellingPrice)
+    : suggestedPrice;
+    
+  if (isNaN(sellingPrice)) sellingPrice = suggestedPrice;
+  
+  const profit = sellingPrice - totalCost;
+  const profitMarginPct = sellingPrice > 0 ? ((sellingPrice - totalCost) / sellingPrice) * 100 : 0;
+  
+  return {
+    material,
+    weightGrams,
+    printHours,
+    materialCost: Math.round(materialCost * 100) / 100,
+    electricityCost: Math.round(electricityCost * 100) / 100,
+    machineWear: Math.round(machineWear * 100) / 100,
+    packaging: Math.round(packaging * 100) / 100,
+    shipping: Math.round(shipping * 100) / 100,
+    cadFee: Math.round(cadFee * 100) / 100,
+    totalCost: Math.round(totalCost * 100) / 100,
+    markupPct,
+    suggestedPrice,
+    sellingPrice: Math.round(sellingPrice),
+    profit: Math.round(profit * 100) / 100,
+    profitMarginPct: Math.round(profitMarginPct * 100) / 100
+  };
+}
+
+// ─── Lead CRM & Pipeline Helpers ────────────────────────────
+
+/** Transition Lead stage and sync update */
+export async function updateLeadStage(leadId, newStage) {
+  const lead = getById('leads', leadId);
+  if (!lead) return null;
+  const updated = await update('leads', leadId, {
+    stage: newStage,
+    updatedAt: new Date().toISOString()
+  });
+  return updated;
+}
+
+/** Convert a Lead / Quote directly into an Active Production Order */
+export async function convertLeadToOrder(leadId, overrides = {}) {
+  const lead = getById('leads', leadId);
+  if (!lead) throw new Error(`Lead #${leadId} not found`);
+
+  const costing = lead.costing || calculateJobCosting({
+    material: lead.material,
+    weightGrams: lead.weightGrams || 60,
+    printHours: lead.printHours || 2.5,
+    sellingPrice: lead.quotedPrice
+  });
+
+  const orderPrice = overrides.totalAmount || lead.quotedPrice || costing.sellingPrice || 1000;
+
+  const newOrder = await create('orders', {
+    clientName: lead.clientName || 'Website Client',
+    clientPhone: lead.clientPhone || '',
+    clientEmail: lead.clientEmail || '',
+    clientGstin: overrides.clientGstin || lead.clientGstin || '',
+    description: overrides.description || lead.notes || `Production for ${lead.clientName}`,
+    priority: overrides.priority || 'standard',
+    kanbanStage: 'slicing', // New orders start at slicing/pre-flight
+    status: 'active',
+    notes: `Converted from Lead #${lead.id}. ${lead.notes || ''}`.trim(),
+    leadId: lead.id,
+    source: lead.source || 'crm_lead',
+    items: overrides.items || [
+      {
+        id: `it_${Date.now()}_1`,
+        name: lead.partName || (lead.cadFiles && lead.cadFiles[0]?.name) || `${lead.material} 3D Printed Part`,
+        material: lead.material || 'PLA+',
+        color: lead.color || 'Standard',
+        quantity: parseInt(lead.quantity, 10) || 1,
+        unitPrice: Math.round(orderPrice / (parseInt(lead.quantity, 10) || 1)),
+        subtotal: orderPrice,
+        status: 'queued'
+      }
+    ],
+    totalAmount: orderPrice,
+    costingBreakdown: costing,
+    payments: overrides.payments || [],
+    createdAt: new Date().toISOString()
+  });
+
+  // Advance lead stage to 'won' and link the created order ID
+  await update('leads', lead.id, {
+    stage: 'won',
+    convertedOrderId: newOrder.id,
+    updatedAt: new Date().toISOString()
+  });
+
+  return newOrder;
+}
+
