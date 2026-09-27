@@ -4,7 +4,7 @@
  * and Workshop Consumables & Hardware Tracking (brass inserts, nozzles, IPA, resin)
  */
 
-import { getAll, create, update, remove, duplicate } from '../data/store.js';
+import { getAll, create, update, remove, duplicate, syncCatalogToCloud } from '../data/store.js';
 import { MATERIAL_TYPES, MATERIAL_BADGES, getSwatchClass } from '../data/seed.js';
 import { escapeHtml, debounce, formatCurrency } from '../utils/helpers.js';
 import { ICONS } from '../utils/icons.js';
@@ -98,6 +98,10 @@ function render(container) {
         <p class="text-secondary">Raw filament library, 50x30mm thermal rack labels, and shop consumables tracking</p>
       </div>
       <div class="page-header-actions">
+        <button class="btn btn-secondary" id="btn-sync-catalog" title="Sync live inventory & materials catalog to Cloud Website">
+          <span>🌐</span>
+          Sync Catalog
+        </button>
         ${_activeTab === 'filaments' ? `
           <button class="btn btn-secondary" id="btn-scale-tare">
             <span style="font-size:1.05rem;">⚖️</span>
@@ -437,6 +441,18 @@ function bindEvents(container) {
 
   // Add filament
   container.querySelector('#btn-add-filament')?.addEventListener('click', () => openFilamentModal());
+
+  // Sync Catalog to Cloud
+  container.querySelector('#btn-sync-catalog')?.addEventListener('click', async () => {
+    const filaments = getAll('filaments') || [];
+    showToast('Syncing catalog to Cloud Website...', 'info');
+    const res = await syncCatalogToCloud(filaments);
+    if (res && res.success) {
+      showToast(`Successfully synced ${res.count || filaments.length} items to website!`, 'success');
+    } else {
+      showToast(res.error || 'Failed to sync catalog to cloud', 'warning');
+    }
+  });
 
   // Add consumable
   container.querySelector('#btn-add-consumable')?.addEventListener('click', () => openConsumableModal());

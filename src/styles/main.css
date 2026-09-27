@@ -115,6 +115,15 @@ a:hover { text-decoration: underline; }
 ul, ol { list-style: none; }
 
 img { max-width: 100%; display: block; }
+svg {
+  width: 1em;
+  height: 1em;
+  max-width: 100%;
+  max-height: 100%;
+  vertical-align: middle;
+  flex-shrink: 0;
+  display: inline-block;
+}
 
 button, input, select, textarea {
   font-family: inherit;
@@ -169,6 +178,8 @@ h4 { font-size: 1rem; }
 .top-header-bar {
   height: 64px;
   min-height: 64px;
+  max-height: 64px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -178,6 +189,7 @@ h4 { font-size: 1rem; }
   backdrop-filter: blur(20px);
   z-index: 90;
   gap: var(--space-md);
+  margin: 0;
 }
 
 .top-header-left {
@@ -295,13 +307,40 @@ h4 { font-size: 1rem; }
 }
 
 /* ── 5. SIDEBAR ────────────────────────────────────────────── */
+#sidebar {
+  width: 240px;
+  min-width: 240px;
+  max-width: 240px;
+  height: 100vh;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
 .sidebar-logo {
-  padding: var(--space-lg) var(--space-lg) var(--space-md);
+  height: 64px;
+  min-height: 64px;
+  max-height: 64px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
-  gap: var(--space-md);
+  gap: 12px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: var(--space-sm);
+  box-sizing: border-box;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.sidebar-logo img {
+  height: 34px;
+  width: auto;
+  max-height: 34px;
+  max-width: 100px;
+  object-fit: contain;
+  display: block;
 }
 
 .sidebar-logo-icon {
@@ -507,7 +546,35 @@ h4 { font-size: 1rem; }
   transition: opacity var(--transition);
 }
 
-.stat-card:hover::before { opacity: 1; }
+.stat-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-xs);
+}
+
+.stat-icon, .stat-card-icon {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  max-width: 36px;
+  max-height: 36px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.stat-icon svg, .stat-card-icon svg {
+  width: 18px !important;
+  height: 18px !important;
+  max-width: 18px !important;
+  max-height: 18px !important;
+  flex-shrink: 0;
+}
 
 .stat-value {
   font-size: 1.8rem;
@@ -607,18 +674,139 @@ h4 { font-size: 1rem; }
   border-radius: var(--radius-sm);
 }
 
-.btn-icon {
-  padding: 8px;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+.btn svg,
+button svg {
+  width: 15px !important;
+  height: 15px !important;
+  max-width: 15px !important;
+  max-height: 15px !important;
+  flex-shrink: 0;
+  vertical-align: middle;
+  display: inline-block;
 }
 
-.btn-icon:hover {
+.btn .nav-icon {
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn .nav-icon svg {
+  width: 15px !important;
+  height: 15px !important;
+  max-width: 15px !important;
+  max-height: 15px !important;
+}
+
+.btn-sm svg,
+.btn-xs svg {
+  width: 13px !important;
+  height: 13px !important;
+  max-width: 13px !important;
+  max-height: 13px !important;
+}
+
+.btn-icon svg {
+  width: 16px !important;
+  height: 16px !important;
+  max-width: 16px !important;
+  max-height: 16px !important;
+}
+
+/* ── Segmented View Toggle Switchers ────────────────────────── */
+.view-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  gap: 3px;
+}
+
+.view-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: calc(var(--radius-md) - 2px);
+  font-size: 0.8rem;
+  font-weight: var(--fw-semibold);
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.view-toggle-btn svg {
+  width: 14px !important;
+  height: 14px !important;
+  max-width: 14px !important;
+  max-height: 14px !important;
+  flex-shrink: 0;
+}
+
+.view-toggle-btn:hover {
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.06);
 }
 
-.btn-icon svg { width: 18px; height: 18px; }
+.view-toggle-btn.active {
+  color: #fff;
+  background: var(--accent-gradient);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.35);
+}
+
+/* Button groups */
+.btn-group {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  padding: 3px;
+  gap: 3px;
+}
+
+.btn-group .btn {
+  border-radius: calc(var(--radius-md) - 2px) !important;
+  margin: 0;
+  border: none !important;
+}
+
+/* Search icons inside input wrappers */
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-box .search-icon,
+.search-box > span:not(.form-input) {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.search-box .search-icon svg,
+.search-box > span:not(.form-input) svg {
+  width: 15px !important;
+  height: 15px !important;
+  max-width: 15px !important;
+  max-height: 15px !important;
+}
 
 /* ── 9. FORMS & INPUTS ─────────────────────────────────────── */
 .form-group {
@@ -3802,5 +3990,154 @@ h4 { font-size: 1rem; }
   color: var(--text-primary);
 }
 
+/* ── 32. LEAD CRM & SALES FUNNEL STYLES ───────────────────── */
+.crm-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
 
+.crm-kanban-board {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 24px;
+  align-items: stretch;
+  scrollbar-width: thin;
+}
 
+.crm-column {
+  flex: 0 0 320px;
+  min-width: 320px;
+  max-width: 340px;
+  background: rgba(15, 18, 33, 0.75);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s ease;
+}
+
+.crm-column::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--stage-color, #38bdf8);
+}
+
+.crm-column-header {
+  padding: 14px 16px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.crm-column-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 250px;
+  max-height: calc(100vh - 290px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.crm-card {
+  background: rgba(22, 26, 48, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  cursor: grab;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+
+.crm-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.crm-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.crm-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.crm-chip-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.crm-chip-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+/* Empty State & Icon constraints */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-secondary);
+}
+
+.empty-state-icon {
+  width: 48px;
+  height: 48px;
+  max-width: 48px;
+  max-height: 48px;
+  font-size: 2rem;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-state-icon svg {
+  width: 36px !important;
+  height: 36px !important;
+  max-width: 36px !important;
+  max-height: 36px !important;
+}

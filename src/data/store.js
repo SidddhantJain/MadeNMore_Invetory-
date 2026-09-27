@@ -5,9 +5,9 @@ const API_HOST = typeof window !== 'undefined' && window.location && window.loca
   ? window.location.hostname
   : 'localhost';
 export const BASE_URL = typeof window !== 'undefined' && window.location
-  ? (window.location.port === '3000' || window.location.port === '5173'
-      ? window.location.protocol + '//' + window.location.hostname + ':4000/api'
-      : window.location.origin + '/api')
+  ? (window.location.port !== '4000'
+      ? `${window.location.protocol}//${window.location.hostname}:4000/api`
+      : `${window.location.origin}/api`)
   : 'http://localhost:4000/api';
 
 // In-memory cache for immediate synchronous reads & reactivity
@@ -826,3 +826,78 @@ export async function convertLeadToOrder(leadId, overrides = {}) {
   return newOrder;
 }
 
+/**
+ * Fetch live website content from Cloud CMS Gateway via local backend proxy
+ */
+export async function fetchSiteContent() {
+  try {
+    const res = await fetch(`${BASE_URL}/cms/content`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch site content:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Push updated website content to Cloud CMS Gateway
+ */
+export async function publishSiteContent(content) {
+  try {
+    const res = await fetch(`${BASE_URL}/cms/content`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(content)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to publish site content:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Push live inventory/products catalog to Cloud Website
+ */
+export async function syncCatalogToCloud(items = []) {
+  try {
+    const res = await fetch(`${BASE_URL}/cms/catalog`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to sync catalog to cloud:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Upload image file to local CMS storage and return public relative URL
+ */
+export async function uploadCmsImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const dataUrl = e.target.result;
+        const res = await fetch(`${BASE_URL}/cms/upload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl, filename: file.name })
+        });
+        if (!res.ok) throw new Error(`Upload failed HTTP ${res.status}`);
+        const data = await res.json();
+        resolve(data);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}

@@ -15,6 +15,7 @@ import { renderTransactions } from './pages/transactions.js';
 import { renderAccounts } from './pages/accounts.js';
 import { renderCalculator } from './pages/calculator.js';
 import { renderSettings } from './pages/settings.js';
+import { renderCms } from './pages/cms.js';
 import { showToast } from './components/toast.js';
 import { showModal, closeModal } from './components/modal.js';
 import { ICONS } from './utils/icons.js';
@@ -29,6 +30,8 @@ const ROUTES = [
   { hash: '#/crm',          label: 'Leads & CRM',  icon: 'crm',          render: renderLeads,        section: 'main', badge: 'leads' },
   { hash: '#/leads',        label: 'Leads & CRM',  icon: 'crm',          render: renderLeads,        section: 'hidden' },
   { hash: '#/orders',        label: 'Orders',       icon: 'order',        render: renderOrders,       section: 'main' },
+  { hash: '#/cms',           label: 'Website CMS',  icon: 'globe',        render: renderCms,          section: 'main' },
+  { hash: '#/content',       label: 'Website CMS',  icon: 'globe',        render: renderCms,          section: 'hidden' },
   { hash: '#/printers',      label: 'Printers',     icon: 'printer',      render: renderPrinters,     section: 'main' },
   { hash: '#/transactions',  label: 'Transactions', icon: 'transactions', render: renderTransactions, section: 'main' },
   { hash: '#/accounts',      label: 'Treasury & Accounts', icon: 'account', render: renderAccounts,   section: 'main' },
@@ -254,6 +257,89 @@ function openQuickQuoteModal() {
   });
 }
 
+function openQuickToolsModal() {
+  showModal({
+    title: '⚡ Workshop Quick Tools & Action Hub',
+    body: `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="card" id="qt-fast-quote" style="cursor:pointer;padding:16px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.25);border-radius:var(--radius-md);transition:all 0.15s ease;">
+          <div style="font-size:1.6rem;margin-bottom:6px;">⚡</div>
+          <div style="font-weight:700;color:var(--text-primary);font-size:0.95rem;">Fast 3D Quoter</div>
+          <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px;">Instant part cost, weight & markup estimator</div>
+        </div>
+
+        <div class="card" id="qt-new-order" style="cursor:pointer;padding:16px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.25);border-radius:var(--radius-md);transition:all 0.15s ease;">
+          <div style="font-size:1.6rem;margin-bottom:6px;">📦</div>
+          <div style="font-weight:700;color:var(--text-primary);font-size:0.95rem;">New Client Order</div>
+          <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px;">Create multi-item assembly order in Kanban</div>
+        </div>
+
+        <div class="card" id="qt-tare-scale" style="cursor:pointer;padding:16px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.25);border-radius:var(--radius-md);transition:all 0.15s ease;">
+          <div style="font-size:1.6rem;margin-bottom:6px;">⚖️</div>
+          <div style="font-weight:700;color:var(--text-primary);font-size:0.95rem;">Tare Digital Scale</div>
+          <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px;">Deduct empty spool weight & calibrate inventory</div>
+        </div>
+
+        <div class="card" id="qt-lan-qr" style="cursor:pointer;padding:16px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.25);border-radius:var(--radius-md);transition:all 0.15s ease;">
+          <div style="font-size:1.6rem;margin-bottom:6px;">📱</div>
+          <div style="font-weight:700;color:var(--text-primary);font-size:0.95rem;">Mobile / Tablet Access</div>
+          <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px;">Scan QR to control workshop from your phone</div>
+        </div>
+
+        <div class="card" id="qt-orcaslicer" style="cursor:pointer;padding:16px;background:rgba(6,182,212,0.06);border:1px solid rgba(6,182,212,0.25);border-radius:var(--radius-md);transition:all 0.15s ease;">
+          <div style="font-size:1.6rem;margin-bottom:6px;">🚀</div>
+          <div style="font-weight:700;color:var(--text-primary);font-size:0.95rem;">3D Slicer & Calculator</div>
+          <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px;">In-browser STL mesh slicer & OrcaSlicer bridge</div>
+        </div>
+
+        <div class="card" id="qt-cloud-sync" style="cursor:pointer;padding:16px;background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.25);border-radius:var(--radius-md);transition:all 0.15s ease;">
+          <div style="font-size:1.6rem;margin-bottom:6px;">📡</div>
+          <div style="font-weight:700;color:var(--text-primary);font-size:0.95rem;">Cloud Sync Gateway</div>
+          <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px;">Trigger sync & check website quotes pipeline</div>
+        </div>
+
+        <div class="card" id="qt-cms-studio" style="cursor:pointer;padding:16px;background:rgba(236,72,153,0.06);border:1px solid rgba(236,72,153,0.25);border-radius:var(--radius-md);transition:all 0.15s ease;">
+          <div style="font-size:1.6rem;margin-bottom:6px;">🌐</div>
+          <div style="font-weight:700;color:var(--text-primary);font-size:0.95rem;">Website CMS Studio</div>
+          <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px;">Edit public hero headers, banners & FAQs</div>
+        </div>
+      </div>
+    `,
+    confirmText: 'Close',
+    onReady: () => {
+      document.getElementById('qt-fast-quote')?.addEventListener('click', () => {
+        closeModal();
+        openQuickQuoteModal();
+      });
+      document.getElementById('qt-new-order')?.addEventListener('click', () => {
+        closeModal();
+        window.location.hash = '#/orders';
+        setTimeout(() => document.getElementById('btn-new-order')?.click(), 150);
+      });
+      document.getElementById('qt-tare-scale')?.addEventListener('click', () => {
+        closeModal();
+        openTareCalculatorModal(null, () => navigate());
+      });
+      document.getElementById('qt-lan-qr')?.addEventListener('click', () => {
+        closeModal();
+        openLANServerModal();
+      });
+      document.getElementById('qt-orcaslicer')?.addEventListener('click', () => {
+        closeModal();
+        window.location.hash = '#/calculator';
+      });
+      document.getElementById('qt-cloud-sync')?.addEventListener('click', () => {
+        closeModal();
+        window.location.hash = '#/settings';
+      });
+      document.getElementById('qt-cms-studio')?.addEventListener('click', () => {
+        closeModal();
+        window.location.hash = '#/cms';
+      });
+    }
+  });
+}
+
 // ─── Executive Top Header ──────────────────────────────────
 function renderTopHeader() {
   const header = document.getElementById('top-header');
@@ -285,41 +371,16 @@ function renderTopHeader() {
         <span style="font-weight:700;" id="top-treasury-val">${formatCurrency(getStats().totalLiquidCapital || 0)}</span>
       </a>
 
-      <button class="top-action-btn primary" id="btn-quick-quote-header" title="Instant Part Price Estimator">
+      <button class="top-action-btn primary" id="btn-header-quick-tools" title="Open Unified Workshop Quick Tools">
         <span style="font-size:1rem;">⚡</span>
-        <span>Quick Quote</span>
-      </button>
-
-      <button class="top-action-btn" id="btn-header-new-order" title="Create New Client Order">
-        <span style="font-size:1rem;">📦</span>
-        <span>New Order</span>
-      </button>
-
-      <button class="top-action-btn" id="btn-header-tare-scale" title="Tare Digital Scale for Spool">
-        <span style="font-size:1rem;">⚖️</span>
-        <span>Tare Scale</span>
-      </button>
-
-      <button class="top-action-btn" id="btn-header-lan-qr" title="Mobile/Tablet QR Access">
-        <span style="font-size:1rem;">📱</span>
-        <span>LAN</span>
+        <span>Quick Tools</span>
       </button>
     </div>
   `;
 
   // Bind click handlers
   header.querySelector('#top-search-btn')?.addEventListener('click', showGlobalSearch);
-  header.querySelector('#btn-quick-quote-header')?.addEventListener('click', openQuickQuoteModal);
-  header.querySelector('#btn-header-new-order')?.addEventListener('click', () => {
-    window.location.hash = '#/orders';
-    setTimeout(() => {
-      document.getElementById('btn-new-order')?.click();
-    }, 200);
-  });
-  header.querySelector('#btn-header-tare-scale')?.addEventListener('click', () => {
-    openTareCalculatorModal(null, () => navigate());
-  });
-  header.querySelector('#btn-header-lan-qr')?.addEventListener('click', openLANServerModal);
+  header.querySelector('#btn-header-quick-tools')?.addEventListener('click', openQuickToolsModal);
 }
 
 // ─── Sidebar ────────────────────────────────────────────────
@@ -337,10 +398,10 @@ function renderSidebar() {
 
   sidebar.innerHTML = `
     <div class="sidebar-logo">
-      <img src="/Logo/logo.png" alt="Made N More" style="height:40px;width:auto;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(139,92,246,0.3));" />
+      <img src="/Logo/logo.png" alt="Made N More" style="height:32px;width:auto;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(139,92,246,0.3));" />
       <div class="sidebar-logo-text">
-        <h2>Made N More</h2>
-        <span>3D Print Manager</span>
+        <h2 style="font-size:1.05rem;line-height:1.1;margin:0;">Made N More</h2>
+        <span style="font-size:0.68rem;letter-spacing:0.08em;margin-top:1px;">3D Print Manager</span>
       </div>
     </div>
 

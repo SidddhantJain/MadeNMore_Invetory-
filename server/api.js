@@ -487,6 +487,30 @@ function getCollection(data, col) {
 
 // ----- Bulk & Diagnostic Endpoints -----
 
+// API Gateway Root / Health Endpoint
+app.get('/api', (req, res) => {
+  res.json({
+    status: 'online',
+    system: 'Made N More Local ERP & Workshop Hub',
+    version: '2.0.0',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      all: '/api/all',
+      leads: '/api/leads',
+      orders: '/api/orders',
+      filaments: '/api/filaments',
+      printers: '/api/printers',
+      accounts: '/api/accounts',
+      transactions: '/api/transactions',
+      consumables: '/api/consumables',
+      syncStatus: '/api/sync/status',
+      syncTrigger: 'POST /api/sync/trigger',
+      syncTest: 'POST /api/sync/test',
+      syncConfig: 'POST /api/sync/config'
+    }
+  });
+});
+
 // Get all collections in a single request (for fast client hydration)
 app.get('/api/all', (req, res) => {
   const data = loadData();
@@ -1391,16 +1415,197 @@ app.post('/api/slicer/slice', async (req, res) => {
     results: {
       massGrams,
       printMinutes: minutes,
-      printHoursFormatted: `${Math.floor(minutes / 60)}h ${minutes % 60}m`,
       layerCount: layers,
       materialCost: Math.round(massGrams * 1.45),
     }
   });
 });
 
+// ─── 5. Cloud Website CMS & Content Studio Proxy ─────────────
+app.get('/api/cms/content', async (req, res) => {
+  const data = loadData();
+  const settings = data.settings || {};
+  const cloudUrl = process.env.CLOUD_API_URL || settings.cloudApiUrl || 'http://localhost:3000';
+
+  try {
+    const cloudRes = await fetch(`${cloudUrl}/api/v1/content`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(6000)
+    });
+
+    if (cloudRes.ok) {
+      const json = await cloudRes.json();
+      if (json.content) {
+        // Cache locally in persisted data
+        data.siteContent = json.content;
+        saveData(data);
+        return res.json({ success: true, source: 'cloud', content: json.content, updatedAt: json.updatedAt || new Date().toISOString() });
+      }
+    }
+  } catch (err) {
+    console.warn(`[CMS] Could not reach cloud at ${cloudUrl}: ${err.message}`);
+  }
+
+  // Fallback to local cache or defaults
+  const fallback = data.siteContent || {
+    brand: {
+      name: "Madenmore",
+      tagline: "Printed with Soul. Built with Precision.",
+      subTagline: "Custom aesthetic 3D prints, bespoke gifts, and high-precision prototyping services.",
+      logoUrl: "/logo.png",
+      contactPhone: "+91 89993 85228",
+      contactEmail: "makenmore07@gmail.com",
+      whatsappNumber: "918999385228",
+      address: "57 midtown, 1501, next to Phoenix Mall Road, Shankar Kalat Nagar, Wakad, Pimpri-Chinchwad, Maharashtra 411057"
+    },
+    announcement: {
+      enabled: true,
+      text: "⚡ Free Shipping on orders over ₹1,999 | Express 48h Custom Dispatch Available",
+      linkUrl: "/catalog"
+    },
+    hero: {
+      badge: "Precision 3D Craftsmanship",
+      title: "Printed with Soul.",
+      highlightText: "Built with Precision.",
+      subtitle: "From luminous lithophanes and celestial moon lamps to rapid engineering prototypes. Hand-calibrated in Pune, India.",
+      primaryCtaText: "Explore Catalog",
+      primaryCtaLink: "/catalog",
+      secondaryCtaText: "Custom 3D Brief",
+      secondaryCtaLink: "/contact",
+      featuredImage: "/image/moon_lamp.webp"
+    },
+    labsHero: {
+      badge: "Precision Additive Manufacturing",
+      title: "Redefining Industrial",
+      highlightText: "Prototyping.",
+      subtitle: "High-end laboratory services delivering certified 3D printed components and rapid prototype iterations.",
+      primaryCtaText: "Initiate Brief",
+      primaryCtaLink: "/contact"
+    },
+    about: {
+      title: "Craftsmanship Meets Digital Fabrication",
+      subtitle: "We blend modern additive manufacturing algorithms with artisanal attention to detail.",
+      storyParagraphs: [
+        "Founded in Pune, Madenmore is an independent 3D printing and rapid fabrication studio. We turn creative concepts and CAD models into tangible, durable physical products.",
+        "Whether you are looking for a bespoke personalized gift or need quick turnaround mechanical prototypes, our calibrated multi-material print farm is ready to deliver."
+      ],
+      stats: [
+        { label: "Print Precision", value: "±0.1 mm" },
+        { label: "Quality Check", value: "100%" },
+        { label: "Turnaround Time", value: "24-72 hrs" },
+        { label: "Materials Supported", value: "PLA, PETG, ABS, TPU" }
+      ]
+    },
+    faqs: [
+      {
+        question: "How long does a custom 3D print take to produce and ship?",
+        answer: "Standard catalogue orders dispatch within 2-3 business days. Custom CAD and bespoke brief orders take 3-5 days depending on model complexity and post-processing requirements."
+      },
+      {
+        question: "What materials do you use?",
+        answer: "We use high-grade bioplastic PLA, durable PETG, impact-resistant ABS, Silk PLA for decorative sheen, and flexible TPU for gaskets and grips."
+      },
+      {
+        question: "Can I upload my own STL/OBJ file for printing?",
+        answer: "Yes! You can submit your file via our Contact / Custom Brief form or directly via WhatsApp for instant quotation."
+      }
+    ]
+  };
+
+  res.json({ success: true, source: 'local_fallback', offline: true, content: fallback, updatedAt: new Date().toISOString() });
+});
+
+app.post('/api/cms/content', async (req, res) => {
+  const content = req.body;
+  if (!content) return res.status(400).json({ error: 'Missing content payload' });
+
+  const data = loadData();
+  const settings = data.settings || {};
+  const cloudUrl = process.env.CLOUD_API_URL || settings.cloudApiUrl || 'http://localhost:3000';
+  const apiKey = process.env.CLOUD_SYNC_API_KEY || settings.cloudApiKey || 'mm_live_sync_secret_2026_key';
+
+  // Save local copy
+  data.siteContent = content;
+  saveData(data);
+
+  // Push to Cloud Website API
+  try {
+    const pushRes = await fetch(`${cloudUrl}/api/v1/content`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey
+      },
+      body: JSON.stringify(content),
+      signal: AbortSignal.timeout(8000)
+    });
+
+    const cloudData = await pushRes.json();
+    if (!pushRes.ok) {
+      return res.status(pushRes.status).json({
+        success: false,
+        savedLocally: true,
+        cloudError: cloudData.error || 'Cloud rejected update'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Published successfully to Cloud Website!',
+      updatedAt: cloudData.updatedAt || new Date().toISOString()
+    });
+  } catch (err) {
+    res.json({
+      success: true,
+      savedLocally: true,
+      offline: true,
+      message: `Saved locally. Cloud website unreachable at ${cloudUrl} (${err.message}).`
+    });
+  }
+});
+
+// ─── 7. Media & Image Upload Engine ──────────────────────────
+const UPLOADS_DIR = path.resolve(__dirname, '../public/uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+app.use('/uploads', express.static(UPLOADS_DIR));
+
+app.post('/api/cms/upload', (req, res) => {
+  const { dataUrl, filename = 'image.png' } = req.body;
+  if (!dataUrl) {
+    return res.status(400).json({ error: 'No image data provided' });
+  }
+
+  try {
+    const matches = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+      return res.status(400).json({ error: 'Invalid base64 data URL format' });
+    }
+
+    const mimeType = matches[1];
+    const base64Data = matches[2];
+    const ext = mimeType.includes('webp') ? '.webp' : mimeType.includes('png') ? '.png' : mimeType.includes('jpeg') || mimeType.includes('jpg') ? '.jpg' : '.png';
+    const cleanBase = path.basename(filename, path.extname(filename)).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeFilename = `${Date.now()}_${cleanBase}${ext}`;
+    const filePath = path.join(UPLOADS_DIR, safeFilename);
+
+    fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+
+    res.json({
+      success: true,
+      url: `/uploads/${safeFilename}`,
+      filename: safeFilename,
+      size: Buffer.byteLength(base64Data, 'base64')
+    });
+  } catch (err) {
+    console.error('[Upload Error]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 
-// Serve production build if dist exists
 const distPath = path.resolve(__dirname, '../dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));

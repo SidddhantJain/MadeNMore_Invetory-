@@ -1027,5 +1027,81 @@
       "message": "Looking for 25 units of customized gold silk 3D printed lamps with LED bases.",
       "createdAt": "2026-09-26T11:00:00.000Z"
     }
-  ]
+  ],
+  "siteContent": {
+    "brand": {
+      "name": "Madenmore",
+      "tagline": "Printed with Soul. Built with Precision.",
+      "subTagline": "Custom aesthetic 3D prints, bespoke gifts, and high-precision prototyping services.",
+      "logoUrl": "/logo.png",
+      "contactPhone": "+91 89993 85228",
+      "contactEmail": "makenmore07@gmail.com",
+      "whatsappNumber": "918999385228",
+      "address": "57 midtown, 1501, next to Phoenix Mall Road, Shankar Kalat Nagar, Wakad, Pimpri-Chinchwad, Maharashtra 411057"
+    },
+    "announcement": {
+      "enabled": true,
+      "text": "⚡ Free Shipping on orders over ₹1,999 | Express 48h Custom Dispatch Available",
+      "linkUrl": "/catalog"
+    },
+    "hero": {
+      "badge": "Precision 3D Craftsmanship",
+      "title": "Printed with Soul.",
+      "highlightText": "Built with Precision.",
+      "subtitle": "From luminous lithophanes and celestial moon lamps to rapid engineering prototypes. Hand-calibrated in Pune, India.",
+      "primaryCtaText": "Explore Catalog",
+      "primaryCtaLink": "/catalog",
+      "secondaryCtaText": "Custom 3D Brief",
+      "secondaryCtaLink": "/contact",
+      "featuredImage": "/image/moon_lamp.webp"
+    },
+    "labsHero": {
+      "badge": "Precision Additive Manufacturing",
+      "title": "Redefining Industrial",
+      "highlightText": "Prototyping.",
+      "subtitle": "High-end laboratory services delivering certified 3D printed components and rapid prototype iterations.",
+      "primaryCtaText": "Initiate Brief",
+      "primaryCtaLink": "/contact"
+    },
+    "about": {
+      "title": "Craftsmanship Meets Digital Fabrication",
+      "subtitle": "We blend modern additive manufacturing algorithms with artisanal attention to detail.",
+      "storyParagraphs": [
+        "Founded in Pune, Madenmore is an independent 3D printing and rapid fabrication studio. We turn creative concepts and CAD models into tangible, durable physical products.",
+        "Whether you are looking for a bespoke personalized gift or need quick turnaround mechanical prototypes, our calibrated multi-material print farm is ready to deliver."
+      ],
+      "stats": [
+        {
+          "label": "Print Precision",
+          "value": "±0.1 mm"
+        },
+        {
+          "label": "Quality Check",
+          "value": "100%"
+        },
+        {
+          "label": "Turnaround Time",
+          "value": "24-72 hrs"
+        },
+        {
+          "label": "Materials Supported",
+          "value": "PLA, PETG, ABS, TPU"
+        }
+      ]
+    },
+    "faqs": [
+      {
+        "question": "How long does a custom 3D print take to produce and ship?",
+        "answer": "Standard catalogue orders dispatch within 2-3 business days. Custom CAD and bespoke brief orders take 3-5 days depending on model complexity and post-processing requirements."
+      },
+      {
+        "question": "What materials do you use?",
+        "answer": "We use high-grade bioplastic PLA, durable PETG, impact-resistant ABS, Silk PLA for decorative sheen, and flexible TPU for gaskets and grips."
+      },
+      {
+        "question": "Can I upload my own STL/OBJ file for printing?",
+        "answer": "Yes! You can submit your file via our Contact / Custom Brief form or directly via WhatsApp for instant quotation."
+      }
+    ]
+  }
 }
